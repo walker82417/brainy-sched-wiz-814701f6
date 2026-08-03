@@ -1211,16 +1211,39 @@ function StudyTimetable({ user }: { user: User }) {
         }
         .tt-timerModal .tt-tmCloseBtn:hover { background: rgba(21,27,77,0.15); }
 
-        /* ===== RUNNING ROW — LIVE WAVE ANIMATION ===== */
+        /* ===== RUNNING ROW — MAGICAL LIVE ANIMATION ===== */
         .tt-rowRUN {
-          position: relative;
+          position: relative; overflow: hidden;
           background: linear-gradient(90deg, #dbeafe 0%, #eff6ff 20%, #dbeafe 40%, #eff6ff 60%, #dbeafe 80%, #eff6ff 100%);
           background-size: 200% 100%;
           animation: ttRowWave 3.5s linear infinite;
         }
-        .tt-rowRUN td:first-child { position: relative; }
-        .tt-rowRUN .tt-rowIcon { animation: ttIconPulse 1.6s ease-in-out infinite; display: inline-block; }
+        /* Shine sweep — a soft diagonal light pass drifting across the row */
+        .tt-rowRUN::before {
+          content: "";
+          position: absolute; inset: 0;
+          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.65) 50%, transparent 58%);
+          background-size: 250% 100%;
+          animation: ttShineSweep 2.6s ease-in-out infinite;
+          pointer-events: none;
+        }
+        /* Glowing blue progress line along the bottom edge — the "it's alive" cue */
+        .tt-rowRUN::after {
+          content: "";
+          position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+          background: linear-gradient(90deg, transparent, #2b6fd6, #7cc0ff, #2b6fd6, transparent);
+          background-size: 200% 100%;
+          box-shadow: 0 0 8px rgba(43,111,214,0.7);
+          animation: ttBlueLineSlide 1.7s linear infinite;
+          pointer-events: none;
+        }
+        .tt-rowRUN .tt-rowIcon {
+          display: inline-block; animation: ttIconPulse 1.6s ease-in-out infinite;
+          filter: drop-shadow(0 0 6px rgba(43,111,214,0.55));
+        }
         @keyframes ttRowWave { 0% { background-position: 0% 0%; } 100% { background-position: -200% 0%; } }
+        @keyframes ttShineSweep { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
+        @keyframes ttBlueLineSlide { 0% { background-position: 0% 0; } 100% { background-position: -200% 0; } }
         @keyframes ttIconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
 
         /* ===== GLASS EXTENSION MODAL ===== */
@@ -1330,6 +1353,40 @@ function StudyTimetable({ user }: { user: User }) {
           box-shadow: 0 8px 20px rgba(21,27,77,0.35), inset 0 1px 0 rgba(255,255,255,0.15);
         }
         .tt-glassBtn.primary:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(21,27,77,0.45); }
+
+        /* ===== WHOLE-APP GLASS THEME ===== */
+        .tt-root {
+          background: linear-gradient(160deg, #eef1fb 0%, #e6ebfa 35%, #dde5f7 70%, #e9edfb 100%) !important;
+          background-attachment: fixed !important;
+          min-height: 100vh;
+        }
+        .tt-header, .tt-card, .tt-pendingBox, .tt-rememberBox, .tt-emailCard {
+          background: rgba(255,255,255,0.55) !important;
+          backdrop-filter: blur(20px) saturate(160%) !important;
+          -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+          border: 1px solid rgba(255,255,255,0.65) !important;
+          border-radius: 20px !important;
+          box-shadow: 0 14px 34px rgba(31,40,112,0.08), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+        }
+        .tt-checklist, .tt-heatmapWrap {
+          background: rgba(255,255,255,0.35) !important;
+          backdrop-filter: blur(10px) saturate(140%) !important;
+          border-radius: 14px !important;
+          padding: 10px !important;
+        }
+        .tt-table {
+          background: rgba(255,255,255,0.5) !important;
+          backdrop-filter: blur(18px) saturate(150%) !important;
+          -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
+          border: 1px solid rgba(255,255,255,0.55) !important;
+          border-radius: 18px !important;
+          overflow: hidden;
+          border-collapse: separate !important;
+        }
+        .tt-table thead tr { background: rgba(21,27,77,0.07) !important; }
+        .tt-rowLIFE, .tt-rowNS { background: rgba(255,255,255,0.25) !important; }
+        .tt-rowPAUSE { background: rgba(254,243,199,0.55) !important; }
+        .tt-rowDONE { background: rgba(220,252,231,0.55) !important; }
       `}</style>
     </div>
   );
