@@ -871,9 +871,13 @@ function StudyTimetable({ user }: { user: User }) {
                     const disablePause = st.status !== "running";
                     const disableDone = st.status === "completed" || st.status === "notstarted" || st.remaining > 10 * 60;
                     const canExtend = st.status === "completed" || st.remaining <= 600;
+                    const rowAllocSec = (st.durationAllocated ?? r.dur) * 60;
+                    const rowPct = st.status === "running" && rowAllocSec > 0
+                      ? Math.min(100, Math.max(0, Math.round(((rowAllocSec - Math.max(0, st.remaining)) / rowAllocSec) * 100)))
+                      : 0;
 
                     return (
-                      <tr key={r.id} className={rowClass}>
+                      <tr key={r.id} className={rowClass} style={st.status === "running" ? ({ ['--pct' as any]: rowPct }) : undefined}>
                         <td className="tt-rowIcon">{r.icon}</td>
                         <td>{displayedStart(r)}</td>
                         <td><b>{r.act}</b></td>
@@ -1216,35 +1220,71 @@ function StudyTimetable({ user }: { user: User }) {
           position: relative; overflow: hidden;
           background: linear-gradient(90deg, #dbeafe 0%, #eff6ff 20%, #dbeafe 40%, #eff6ff 60%, #dbeafe 80%, #eff6ff 100%);
           background-size: 200% 100%;
-          animation: ttRowWave 3.5s linear infinite;
+          animation: ttRowWave 3.5s linear infinite, ttRowHalo 3s ease-in-out infinite;
         }
         /* Shine sweep — a soft diagonal light pass drifting across the row */
         .tt-rowRUN::before {
           content: "";
           position: absolute; inset: 0;
-          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.65) 50%, transparent 58%);
+          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.7) 50%, transparent 58%);
           background-size: 250% 100%;
           animation: ttShineSweep 2.6s ease-in-out infinite;
           pointer-events: none;
         }
-        /* Glowing blue progress line along the bottom edge — the "it's alive" cue */
+        /* Real progress fill along the bottom edge — grows with actual elapsed time,
+           not just a decorative loop, so the row visibly fills up as you study */
         .tt-rowRUN::after {
           content: "";
-          position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
-          background: linear-gradient(90deg, transparent, #2b6fd6, #7cc0ff, #2b6fd6, transparent);
-          background-size: 200% 100%;
-          box-shadow: 0 0 8px rgba(43,111,214,0.7);
-          animation: ttBlueLineSlide 1.7s linear infinite;
+          position: absolute; left: 0; bottom: 0; height: 4px;
+          width: calc(var(--pct, 0) * 1%);
+          background: linear-gradient(90deg, #1d4ed8, #3b82f6, #7cc0ff);
+          box-shadow: 0 0 12px 3px rgba(59,130,246,0.75), 0 0 2px rgba(255,255,255,0.9);
+          border-radius: 0 6px 6px 0;
+          transition: width 1s linear;
           pointer-events: none;
         }
         .tt-rowRUN .tt-rowIcon {
           display: inline-block; animation: ttIconPulse 1.6s ease-in-out infinite;
-          filter: drop-shadow(0 0 6px rgba(43,111,214,0.55));
+          filter: drop-shadow(0 0 7px rgba(43,111,214,0.65));
         }
         @keyframes ttRowWave { 0% { background-position: 0% 0%; } 100% { background-position: -200% 0%; } }
         @keyframes ttShineSweep { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
-        @keyframes ttBlueLineSlide { 0% { background-position: 0% 0; } 100% { background-position: -200% 0; } }
+        @keyframes ttRowHalo {
+          0%, 100% { box-shadow: inset 0 0 0px rgba(59,130,246,0); }
+          50% { box-shadow: inset 0 0 22px rgba(59,130,246,0.18); }
+        }
         @keyframes ttIconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+
+        /* ===== GLASS ACTION BUTTONS / PILLS / PENDING CHIPS ===== */
+        .tt-actBtns button {
+          background: rgba(255,255,255,0.55) !important;
+          backdrop-filter: blur(8px) saturate(140%);
+          border: 1px solid rgba(21,27,77,0.12) !important;
+          border-radius: 10px !important;
+          box-shadow: 0 2px 6px rgba(21,27,77,0.08);
+          transition: transform .15s, box-shadow .15s, background .15s;
+        }
+        .tt-actBtns button:not(:disabled):hover {
+          transform: translateY(-2px);
+          background: rgba(255,255,255,0.85) !important;
+          box-shadow: 0 6px 14px rgba(21,27,77,0.16);
+        }
+        .tt-statusPill {
+          backdrop-filter: blur(6px) saturate(150%);
+          border-radius: 20px !important;
+          letter-spacing: .4px;
+          box-shadow: 0 2px 8px rgba(21,27,77,0.08);
+        }
+        .tt-pendingItem {
+          background: rgba(255,255,255,0.5) !important;
+          backdrop-filter: blur(10px) saturate(140%);
+          border: 1px solid rgba(21,27,77,0.1) !important;
+          border-radius: 14px !important;
+          box-shadow: 0 3px 10px rgba(21,27,77,0.06);
+        }
+        .tt-pendingItem button {
+          border-radius: 10px !important;
+        }
 
         /* ===== GLASS EXTENSION MODAL ===== */
         @keyframes ttGlassIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
