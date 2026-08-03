@@ -1161,14 +1161,16 @@ function StudyTimetable({ user }: { user: User }) {
 
         /* ===== TIMER — CENTERED iOS-STYLE GLASS MODAL ===== */
         .tt-timerOverlay {
-          position: fixed; inset: 0; z-index: 9997;
-          display: flex; justify-content: center; align-items: center; padding: 16px;
+          position: fixed !important; inset: 0 !important; z-index: 9997;
+          display: flex !important; justify-content: center !important; align-items: center !important; padding: 16px;
           background: radial-gradient(ellipse at center, rgba(21,27,77,0.5), rgba(0,0,0,0.7));
           backdrop-filter: blur(12px) saturate(140%);
           animation: ttFadeIn .2s ease-out;
           pointer-events: none;
         }
         .tt-timerModal {
+          position: static !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+          transform: none !important; margin: 0 !important;
           pointer-events: auto;
           width: 100%; max-width: 380px;
           background: linear-gradient(160deg, rgba(255,255,255,0.85), rgba(255,255,255,0.6));
