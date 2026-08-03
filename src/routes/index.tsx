@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, googleProvider } from "../firebaseConfig";
 
@@ -164,46 +164,121 @@ function AppWrapper() {
 
   if (!user) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#1f2870', color: 'white', fontFamily: 'sans-serif' }}>
-        <h1 style={{ fontSize: '48px', margin: '0 0 10px 0' }}>Officer Rohan's Timetable</h1>
-        <p style={{ fontSize: '18px', opacity: 0.8, marginBottom: '30px' }}>Firebase Secured Architecture</p>
+      <div className="tt-loginRoot">
+        <div className="tt-loginOrb o1" />
+        <div className="tt-loginOrb o2" />
+        <div className="tt-loginOrb o3" />
+        <div className="tt-loginGrid" />
 
-        {/* EMAIL & PASSWORD LOGIN BOX */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '320px', marginBottom: '20px' }}>
-          <input
-            type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)}
-            style={{ padding: '14px', borderRadius: '8px', border: 'none', fontSize: '16px', outline: 'none' }}
-          />
-          <input
-            type="password" placeholder="Password (min 6 chars)" value={pass} onChange={e => setPass(e.target.value)}
-            style={{ padding: '14px', borderRadius: '8px', border: 'none', fontSize: '16px', outline: 'none' }}
-          />
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => signInWithEmailAndPassword(auth, email, pass).catch(e => alert("LOGIN ERROR: " + e.message))}
-              style={{ flex: 1, padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-              Login
-            </button>
-            <button
-              onClick={() => createUserWithEmailAndPassword(auth, email, pass).catch(e => alert("SIGNUP ERROR: " + e.message))}
-              style={{ flex: 1, padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-              Sign Up
-            </button>
+        <div className="tt-loginCard">
+          <h1 className="tt-loginTitle">Officer Rohan's Timetable</h1>
+          <p className="tt-loginSub">Firebase Secured Architecture</p>
+
+          {/* EMAIL & PASSWORD LOGIN BOX */}
+          <div className="tt-loginForm">
+            <input
+              className="tt-loginInput"
+              type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)}
+            />
+            <input
+              className="tt-loginInput"
+              type="password" placeholder="Password (min 6 chars)" value={pass} onChange={e => setPass(e.target.value)}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="tt-loginBtn login"
+                onClick={() => signInWithEmailAndPassword(auth, email, pass).catch(e => alert("LOGIN ERROR: " + e.message))}>
+                Login
+              </button>
+              <button
+                className="tt-loginBtn signup"
+                onClick={() => createUserWithEmailAndPassword(auth, email, pass).catch(e => alert("SIGNUP ERROR: " + e.message))}>
+                Sign Up
+              </button>
+            </div>
           </div>
+
+          <div className="tt-loginDivider">— OR —</div>
+
+          {/* GOOGLE LOGIN FALLBACK */}
+          <button
+            className="tt-loginGoogleBtn"
+            onClick={() => {
+              signInWithPopup(auth, googleProvider).catch((error) => {
+                alert("GOOGLE LOGIN ERROR: " + error.message);
+              });
+            }}>
+            Verify with Google
+          </button>
         </div>
 
-        <div style={{ margin: '10px 0', opacity: 0.5, fontSize: '14px' }}>— OR —</div>
+        <style>{`
+          .tt-loginRoot {
+            position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(ellipse at top, #1f2870 0%, #10133f 60%, #0a0c2b 100%);
+          }
+          .tt-loginGrid {
+            position: absolute; inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+                               linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+            background-size: 42px 42px;
+            mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.9) 0%, transparent 75%);
+          }
+          .tt-loginOrb {
+            position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.35;
+            animation: ttOrbFloat 16s ease-in-out infinite;
+          }
+          .tt-loginOrb.o1 { width: 320px; height: 320px; background: #f2c14e; top: -80px; left: -60px; animation-duration: 18s; }
+          .tt-loginOrb.o2 { width: 260px; height: 260px; background: #2b6fd6; bottom: -60px; right: -40px; animation-duration: 22s; animation-delay: -4s; }
+          .tt-loginOrb.o3 { width: 200px; height: 200px; background: #2a9d5c; top: 40%; right: 15%; animation-duration: 14s; animation-delay: -8s; }
+          @keyframes ttOrbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -20px) scale(1.1); }
+            66% { transform: translate(-20px, 25px) scale(0.95); }
+          }
 
-        {/* GOOGLE LOGIN FALLBACK */}
-        <button
-          onClick={() => {
-            signInWithPopup(auth, googleProvider).catch((error) => {
-              alert("GOOGLE LOGIN ERROR: " + error.message);
-            });
-          }}
-          style={{ padding: '14px 32px', background: '#f0b429', color: '#111', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', transition: 'transform 0.2s', marginTop: '10px' }}>
-          Verify with Google
-        </button>
+          .tt-loginCard {
+            position: relative; z-index: 2; width: 360px; padding: 40px 36px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 24px;
+            backdrop-filter: blur(18px) saturate(140%);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+            text-align: center; color: white;
+            animation: ttCardIn .6s cubic-bezier(.2,.9,.3,1.1);
+          }
+          @keyframes ttCardIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+          .tt-loginTitle { font-size: 26px; margin: 0 0 6px 0; font-weight: 800; letter-spacing: .3px; }
+          .tt-loginSub { font-size: 13px; opacity: 0.65; margin: 0 0 26px 0; letter-spacing: .5px; }
+
+          .tt-loginForm { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+          .tt-loginInput {
+            padding: 13px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.08); color: white; font-size: 15px; outline: none;
+            transition: border-color .2s, background .2s;
+          }
+          .tt-loginInput::placeholder { color: rgba(255,255,255,0.45); }
+          .tt-loginInput:focus { border-color: #f2c14e; background: rgba(255,255,255,0.13); }
+
+          .tt-loginBtn {
+            flex: 1; padding: 12px; border: none; border-radius: 12px; cursor: pointer;
+            font-weight: 700; font-size: 15px; color: white; transition: transform .15s, box-shadow .15s;
+          }
+          .tt-loginBtn:hover { transform: translateY(-1px); }
+          .tt-loginBtn.login { background: linear-gradient(145deg, #22c55e, #16a34a); box-shadow: 0 6px 16px rgba(34,197,94,0.35); }
+          .tt-loginBtn.signup { background: linear-gradient(145deg, #3b82f6, #2563eb); box-shadow: 0 6px 16px rgba(59,130,246,0.35); }
+
+          .tt-loginDivider { font-size: 12px; opacity: 0.4; margin: 6px 0 16px 0; letter-spacing: 1px; }
+
+          .tt-loginGoogleBtn {
+            padding: 13px 32px; background: linear-gradient(145deg, #f2c14e, #e8a92e); color: #151b4d;
+            border: none; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer;
+            box-shadow: 0 8px 20px rgba(242,193,78,0.3); transition: transform .15s;
+          }
+          .tt-loginGoogleBtn:hover { transform: translateY(-1px); }
+        `}</style>
       </div>
     );
   }
@@ -292,6 +367,51 @@ function StudyTimetable({ user }: { user: User }) {
     });
 
     return () => { unsubUser(); unsubToday(); };
+  }, [user.uid]);
+
+  /* -- DEFENSIVE RESYNC (fixes stale data in WebView2 / live-wallpaper embeds) --
+     Some embedded WebView2 contexts silently drop Firestore's realtime
+     WebSocket connection without reconnecting, especially when the window
+     never gets normal browser focus (e.g. running as a desktop wallpaper).
+     onSnapshot can then go quiet forever while looking "connected". As a
+     safety net, we force a plain one-time read whenever the tab regains
+     visibility/focus/network, and again every 45s regardless, so a phone
+     edit always shows up on the laptop viewer within that window. */
+  useEffect(() => {
+    const forceResync = async () => {
+      try {
+        const [userSnap, todaySnap] = await Promise.all([getDoc(userRef), getDoc(todayRef)]);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          if (data.examDates) setExamDates(data.examDates);
+          if (data.heatmapLog) setHeatmapLog(data.heatmapLog);
+        }
+        if (todaySnap.exists()) {
+          const data = todaySnap.data();
+          if (data.sessions) setSessions(data.sessions);
+          if (data.checklist) setChecklist(data.checklist);
+          if (data.pending) setPending(data.pending);
+          if (data.completedLog) setCompletedLog(data.completedLog);
+          if (data.extensionLog) setExtensionLog(data.extensionLog);
+          if (data.timeShift !== undefined) setTimeShift(data.timeShift);
+        }
+      } catch (e) {
+        console.error("Forced resync failed", e);
+      }
+    };
+
+    const onVisible = () => { if (document.visibilityState === "visible") forceResync(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", forceResync);
+    window.addEventListener("online", forceResync);
+    const pollId = window.setInterval(forceResync, 45000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", forceResync);
+      window.removeEventListener("online", forceResync);
+      window.clearInterval(pollId);
+    };
   }, [user.uid]);
 
   // Push updates to Firebase
@@ -632,11 +752,19 @@ function StudyTimetable({ user }: { user: User }) {
     const bestDay = Object.keys(byDay).sort((a, b) => byDay[b] - byDay[a])[0] || "—";
     const weakDay = Object.entries(byDay).filter(([, v]) => v > 0).sort((a, b) => a[1] - b[1])[0]?.[0] || "—";
 
+    // Partial credit: time spent on a session you started but haven't hit
+    // "Complete" on yet shouldn't be lost from your totals. liveProgress.studied
+    // already includes elapsed time on running/paused sessions, so it's the
+    // true "today" figure. Today falls inside both the week and month windows
+    // too, so we carry the same partial-time bonus into those totals.
+    const todayCompletedMin = sum(todayLogs);
+    const partialBonus = Math.max(0, liveProgress.studied - todayCompletedMin);
+
     return {
       cells: [
-        ["TODAY", (sum(todayLogs) / 60).toFixed(1) + "h"],
-        ["THIS WEEK", (sum(weekLogs) / 60).toFixed(1) + "h"],
-        ["THIS MONTH", (sum(monthLogs) / 60).toFixed(1) + "h"],
+        ["TODAY", (liveProgress.studied / 60).toFixed(1) + "h"],
+        ["THIS WEEK", ((sum(weekLogs) + partialBonus) / 60).toFixed(1) + "h"],
+        ["THIS MONTH", ((sum(monthLogs) + partialBonus) / 60).toFixed(1) + "h"],
         ["COMPLETED SESSIONS", String(completedLog.length)],
         ["AVG SESSION", avgSession + "m"],
         ["MOST STUDIED", mostStudied],
@@ -646,7 +774,7 @@ function StudyTimetable({ user }: { user: User }) {
         ["WEAK DAY", weakDay],
       ] as [string, string][],
     };
-  }, [completedLog, heatmapLog, streak]);
+  }, [completedLog, heatmapLog, streak, liveProgress]);
 
   /* =========================================================
      RENDER
@@ -975,31 +1103,33 @@ function StudyTimetable({ user }: { user: User }) {
         }
 
         return (
-          <div className={`tt-timerModal ${done ? "done" : ""} ${critical ? "warn" : ""}`}>
-            <div className="tt-tmHead">
-              <div>
-                <span className="tt-tmIcon">{active.icon}</span>
-                <span className="tt-tmTitle">{active.act}</span>
-                <span className={`tt-statusPill tt-st-${st.status}`}>
-                  {st.status === "notstarted" ? "NOT STARTED" : st.status.toUpperCase()}
-                </span>
+          <div className="tt-timerOverlay">
+            <div className={`tt-timerModal ${done ? "done" : ""} ${critical ? "warn" : ""}`}>
+              <div className="tt-tmHead">
+                <div>
+                  <span className="tt-tmIcon">{active.icon}</span>
+                  <span className="tt-tmTitle">{active.act}</span>
+                  <span className={`tt-statusPill tt-st-${st.status}`}>
+                    {st.status === "notstarted" ? "NOT STARTED" : st.status.toUpperCase()}
+                  </span>
+                </div>
+                <button className="tt-tmCloseBtn" onClick={() => setTimerMinimized(true)}>
+                  🔽 Minimize
+                </button>
               </div>
-              <button className="tt-tmCloseBtn" onClick={() => setTimerMinimized(true)}>
-                🔽 Minimize
-              </button>
-            </div>
-            <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
-            <div className="tt-tmHint">
-              {done ? "✅ Time complete — you may Complete or Extend." : "Complete and Extension unlock in the final 10 minutes."}
-            </div>
-            <div className="tt-tmBtns">
-              {st.status === "running" ? (
-                <button className="tt-b-pause" onClick={() => pauseSession(active.id)}>⏸ Pause</button>
-              ) : (
-                <button className="tt-b-start" onClick={() => startSession(active.id)}>▶ Resume</button>
-              )}
-              <button className="tt-b-ext" disabled={!canExtend} onClick={() => { setDeductId('none'); setExtendComment(''); setExtendModal({ id: active.id }); }}>➕ Extend</button>
-              <button className="tt-b-done" disabled={st.remaining > 10 * 60} onClick={() => completeSession(active.id)}>✓ Complete</button>
+              <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+              <div className="tt-tmHint">
+                {done ? "✅ Time complete — you may Complete or Extend." : "Complete and Extension unlock in the final 10 minutes."}
+              </div>
+              <div className="tt-tmBtns">
+                {st.status === "running" ? (
+                  <button className="tt-b-pause" onClick={() => pauseSession(active.id)}>⏸ Pause</button>
+                ) : (
+                  <button className="tt-b-start" onClick={() => startSession(active.id)}>▶ Resume</button>
+                )}
+                <button className="tt-b-ext" disabled={!canExtend} onClick={() => { setDeductId('none'); setExtendComment(''); setExtendModal({ id: active.id }); }}>➕ Extend</button>
+                <button className="tt-b-done" disabled={st.remaining > 10 * 60} onClick={() => completeSession(active.id)}>✓ Complete</button>
+              </div>
             </div>
           </div>
         );
@@ -1028,6 +1158,68 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-tmCloseBtn:hover { background: #d1d5db; color: #111; }
         .tt-tmHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; }
         .tt-tmHead > div { display: flex; align-items: center; gap: 10px; }
+
+        /* ===== TIMER — CENTERED iOS-STYLE GLASS MODAL ===== */
+        .tt-timerOverlay {
+          position: fixed; inset: 0; z-index: 9997;
+          display: flex; justify-content: center; align-items: center; padding: 16px;
+          background: radial-gradient(ellipse at center, rgba(21,27,77,0.5), rgba(0,0,0,0.7));
+          backdrop-filter: blur(12px) saturate(140%);
+          animation: ttFadeIn .2s ease-out;
+          pointer-events: none;
+        }
+        .tt-timerModal {
+          pointer-events: auto;
+          width: 100%; max-width: 380px;
+          background: linear-gradient(160deg, rgba(255,255,255,0.85), rgba(255,255,255,0.6));
+          backdrop-filter: blur(28px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 28px;
+          padding: 26px 26px 22px;
+          box-shadow: 0 30px 70px rgba(15,20,50,0.4), inset 0 1px 0 rgba(255,255,255,0.7);
+          color: #1b1e2b; text-align: center;
+          animation: ttGlassIn .3s cubic-bezier(.2,.9,.3,1.2);
+        }
+        .tt-timerModal.warn { border-color: rgba(234,88,12,0.5); box-shadow: 0 30px 70px rgba(234,88,12,0.25), inset 0 1px 0 rgba(255,255,255,0.7); }
+        .tt-timerModal.done { border-color: rgba(34,197,94,0.5); box-shadow: 0 30px 70px rgba(34,197,94,0.25), inset 0 1px 0 rgba(255,255,255,0.7); }
+        .tt-timerModal .tt-tmIcon { font-size: 20px; }
+        .tt-timerModal .tt-tmTitle { font-family: var(--tt-font-display, inherit); font-size: 15px; font-weight: 800; color: #151b4d; }
+        .tt-timerModal .tt-tmBig {
+          font-family: monospace; font-size: 52px; font-weight: 800; color: #151b4d;
+          margin: 18px 0 6px 0; letter-spacing: 1px;
+        }
+        .tt-timerModal.warn .tt-tmBig { color: #ea580c; animation: ttPulseWarn 1s ease-in-out infinite; }
+        .tt-timerModal.done .tt-tmBig { color: #16a34a; }
+        @keyframes ttPulseWarn { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+        .tt-timerModal .tt-tmHint { font-size: 12px; color: #6b7280; margin-bottom: 18px; }
+        .tt-timerModal .tt-tmBtns { display: flex; gap: 8px; justify-content: center; }
+        .tt-timerModal .tt-tmBtns button {
+          flex: 1; padding: 11px 10px; border-radius: 12px; border: none; font-weight: 700; font-size: 13px; cursor: pointer;
+          transition: transform .15s;
+        }
+        .tt-timerModal .tt-tmBtns button:hover:not(:disabled) { transform: translateY(-1px); }
+        .tt-timerModal .tt-tmBtns button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tt-timerModal .tt-b-start { background: linear-gradient(145deg,#22c55e,#16a34a); color: #fff; }
+        .tt-timerModal .tt-b-pause { background: linear-gradient(145deg,#f2c14e,#e8a92e); color: #151b4d; }
+        .tt-timerModal .tt-b-ext { background: rgba(21,27,77,0.08); color: #151b4d; }
+        .tt-timerModal .tt-b-done { background: linear-gradient(145deg,#151b4d,#1f2870); color: #f2c14e; }
+        .tt-timerModal .tt-tmCloseBtn {
+          background: rgba(21,27,77,0.08); color: #4b5563; border: none; padding: 6px 12px;
+          border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer;
+        }
+        .tt-timerModal .tt-tmCloseBtn:hover { background: rgba(21,27,77,0.15); }
+
+        /* ===== RUNNING ROW — LIVE WAVE ANIMATION ===== */
+        .tt-rowRUN {
+          position: relative;
+          background: linear-gradient(90deg, #dbeafe 0%, #eff6ff 20%, #dbeafe 40%, #eff6ff 60%, #dbeafe 80%, #eff6ff 100%);
+          background-size: 200% 100%;
+          animation: ttRowWave 3.5s linear infinite;
+        }
+        .tt-rowRUN td:first-child { position: relative; }
+        .tt-rowRUN .tt-rowIcon { animation: ttIconPulse 1.6s ease-in-out infinite; display: inline-block; }
+        @keyframes ttRowWave { 0% { background-position: 0% 0%; } 100% { background-position: -200% 0%; } }
+        @keyframes ttIconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
 
         /* ===== GLASS EXTENSION MODAL ===== */
         @keyframes ttGlassIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
