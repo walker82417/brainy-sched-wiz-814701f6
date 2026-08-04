@@ -5,7 +5,7 @@ import { onAuthStateChanged, signInWithPopup, User, signInWithEmailAndPassword, 
 import { db, auth, googleProvider } from "../firebaseConfig";
 
 // === GOOGLE SHEETS SYNC CONFIG ===
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyFbz6Gf4hcGZfDv0aXKS9wZVm9HobFagMVK6ieL2Y0Iy_NB0vTmztA06_0nmNb0hGl/exec";
+const WEB_APP_URL = "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
 const SHARED_SECRET = "rohan-secure-2026";
 
 export const Route = createFileRoute("/")({
@@ -72,6 +72,32 @@ const QUOTES = [
   "Your future is created by what you do today, not tomorrow.",
   "One day or day one. You decide.",
   "Consistency beats intensity.",
+  "Every hour you put in is an hour your competition didn't.",
+  "The exam doesn't care how you feel today. Show up anyway.",
+  "Officers aren't made on good days. They're made on days like this.",
+  "You don't need motivation. You need a system, and you already have one.",
+  "The version of you that clears this exam is being built right now.",
+  "No one sees the 5 AM sessions. Everyone sees the result.",
+  "Tough books don't stay tough forever. Keep turning pages.",
+  "Success is boring in the moment and unforgettable in hindsight.",
+];
+
+// Quotes that acknowledge you're already deep in strong momentum —
+// used when your live progress or streak is genuinely high, so the
+// message actually matches reality instead of generic filler.
+const HIGH_PERFORMANCE_QUOTES = [
+  "This is what discipline looks like from the outside. Keep going.",
+  "You're not chasing the exam anymore — you're ahead of it.",
+  "This streak isn't luck. It's who you're becoming.",
+  "Most people quit right before this kind of momentum shows up.",
+  "The board is green because you decided it would be. Don't stop now.",
+];
+
+const LOW_PROGRESS_QUOTES = [
+  "Slow start is still a start. Pick one session and begin.",
+  "You don't have to feel ready. You just have to begin.",
+  "One session today rebuilds the whole day's momentum.",
+  "The hardest part is the first 10 minutes. Start there.",
 ];
 
 type ExamKey = "ssc" | "gate" | "ese";
@@ -82,7 +108,7 @@ const EXAMS_DEFAULT: Record<ExamKey, { label: string; date: string }> = {
 };
 
 type SessionStatus = "notstarted" | "running" | "paused" | "completed";
-type SessionRec = { status: SessionStatus; remaining: number; endTs: number | null; warned: boolean; durationAllocated?: number; };
+type SessionRec = { status: SessionStatus; remaining: number; endTs: number | null; warned: boolean; durationAllocated?: number; topic?: string; };
 type CompletedLog = { date: string; rowId: number; cat: Row["cat"]; durMin: number; ts: number };
 
 /* =============================================================
@@ -310,6 +336,10 @@ function StudyTimetable({ user }: { user: User }) {
   const [deductId, setDeductId] = useState<number | 'none'>('none');
   const [extendComment, setExtendComment] = useState<string>('');
   const [timerMinimized, setTimerMinimized] = useState(false);
+  const [startPrompt, setStartPrompt] = useState<{ id: number } | null>(null);
+  const [topicInput, setTopicInput] = useState<string>('');
+  const [sessionTopics, setSessionTopics] = useState<Record<number, string>>({});
+  const [startTopic, setStartTopic] = useState<string>('');
 
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -359,6 +389,7 @@ function StudyTimetable({ user }: { user: User }) {
         if (data.completedLog) setCompletedLog(data.completedLog);
         if (data.extensionLog) setExtensionLog(data.extensionLog);
         if (data.timeShift !== undefined) setTimeShift(data.timeShift);
+        if (data.sessionTopics) setSessionTopics(data.sessionTopics);
       } else {
         // Initialize daily document if it doesn't exist
         setDoc(todayRef, { sessions: initSessions(), checklist: initChecklist(), pending: [], completedLog: [], timeShift: 0 }, { merge: true });
@@ -394,6 +425,7 @@ function StudyTimetable({ user }: { user: User }) {
           if (data.completedLog) setCompletedLog(data.completedLog);
           if (data.extensionLog) setExtensionLog(data.extensionLog);
           if (data.timeShift !== undefined) setTimeShift(data.timeShift);
+          if (data.sessionTopics) setSessionTopics(data.sessionTopics);
         }
       } catch (e) {
         console.error("Forced resync failed", e);
@@ -556,7 +588,7 @@ function StudyTimetable({ user }: { user: User }) {
   /* =========================================================
      ACTIONS (Pushing to Firebase)
      ========================================================= */
-  const startSession = (id: number) => {
+  const startSession = (id: number, topic: string = '') => {
     const st = sessions[id];
     if (!st || st.status === "completed") return;
 
@@ -571,13 +603,17 @@ function StudyTimetable({ user }: { user: User }) {
 
     nextSessions[id] = { ...st, status: "running", endTs: Date.now() + st.remaining * 1000, warned: false };
 
+    const trimmedTopic = topic.trim();
+    const newSessionTopics = trimmedTopic ? { ...sessionTopics, [id]: trimmedTopic } : sessionTopics;
+
     playStartChime();
     setSessions(nextSessions);
-    updateToday({ sessions: nextSessions, pending: pending.filter((x) => x !== id) });
+    if (trimmedTopic) setSessionTopics(newSessionTopics);
+    updateToday({ sessions: nextSessions, pending: pending.filter((x) => x !== id), sessionTopics: newSessionTopics });
 
     // Sync to Google Sheets
     const row = ROWS.find((r) => r.id === id);
-    if (row) postToSheet({ row: row.act, cat: row.cat }, "session_started");
+    if (row) postToSheet({ row: row.act, cat: row.cat, topic: trimmedTopic }, "session_started");
   };
 
   const pauseSession = (id: number) => {
@@ -710,7 +746,18 @@ function StudyTimetable({ user }: { user: User }) {
   const greetLine = mounted ? `${greet}, Officer Rohan — ${now.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}` : "Good Morning, Officer Rohan";
   const clockLine = mounted ? now.toLocaleTimeString("en-IN", { hour12: true }) : "--:--:--";
   const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
-  const dailyQuote = QUOTES[dayOfYear % QUOTES.length];
+  // Pick from a tier that actually matches how the day is going, instead of a
+  // pure day-of-year rotation that might congratulate you on a slow day or
+  // undersell a genuinely strong one.
+  const dailyQuote = useMemo(() => {
+    if (streak >= 3 || liveProgress.pct >= 0.6) {
+      return HIGH_PERFORMANCE_QUOTES[dayOfYear % HIGH_PERFORMANCE_QUOTES.length];
+    }
+    if (liveProgress.pct === 0 && doneToday.length === 0) {
+      return LOW_PROGRESS_QUOTES[dayOfYear % LOW_PROGRESS_QUOTES.length];
+    }
+    return QUOTES[dayOfYear % QUOTES.length];
+  }, [dayOfYear, streak, liveProgress.pct, doneToday.length]);
 
   const displayedStart = (row: Row) => {
     if (!mounted) return row.time.split("–")[0].trim();
@@ -836,7 +883,7 @@ function StudyTimetable({ user }: { user: User }) {
               <div className="tt-greet">{greetLine}</div>
               <div className="tt-clock">{clockLine}</div>
             </div>
-            <div className="tt-quoteBar">&ldquo;{dailyQuote}&rdquo;</div>
+            <div className="tt-quoteBar" key={dailyQuote}>&ldquo;{dailyQuote}&rdquo;</div>
             <div className="tt-syncIndicator" style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '6px 12px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold' }}>
               <span className="tt-syncDot" aria-hidden="true" style={{ background: '#22c55e', width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
               <span>Firebase Database Synced ⚡ ({user.email})</span>
@@ -875,17 +922,23 @@ function StudyTimetable({ user }: { user: User }) {
                     const rowPct = st.status === "running" && rowAllocSec > 0
                       ? Math.min(100, Math.max(0, Math.round(((rowAllocSec - Math.max(0, st.remaining)) / rowAllocSec) * 100)))
                       : 0;
+                    const rowStyle = st.status === "running" ? ({ '--pct': `${rowPct}%` } as React.CSSProperties) : undefined;
 
                     return (
-                      <tr key={r.id} className={rowClass} style={st.status === "running" ? ({ ['--pct' as any]: rowPct }) : undefined}>
+                      <tr key={r.id} className={rowClass} style={rowStyle}>
                         <td className="tt-rowIcon">{r.icon}</td>
                         <td>{displayedStart(r)}</td>
                         <td><b>{r.act}</b></td>
-                        <td>{r.focus}</td>
+                        <td>
+                          {r.focus}
+                          {st.status === "running" && sessionTopics[r.id] && (
+                            <div className="tt-rowTopic">📌 {sessionTopics[r.id]}</div>
+                          )}
+                        </td>
                         <td><span className={`tt-statusPill ${pillClass}`}>{pillLabel}</span></td>
                         <td className={`tt-rowTimer ${critical ? "critical" : ""}`}>{fmtTime(st.remaining)}</td>
                         <td className="tt-actBtns">
-                          <button className="tt-b-start" disabled={disableStart} onClick={() => startSession(r.id)}>▶</button>
+                          <button className="tt-b-start" disabled={disableStart} onClick={() => { if (st.status === 'notstarted') { setTopicInput(''); setStartPrompt({ id: r.id }); } else { startSession(r.id); } }}>▶</button>
                           <button className="tt-b-pause" disabled={disablePause} onClick={() => pauseSession(r.id)}>⏸</button>
                           <button className="tt-b-ext" disabled={!canExtend} onClick={() => { setDeductId('none'); setExtendComment(''); setExtendModal({ id: r.id }); }}>➕</button>
                           <button className="tt-b-done" disabled={disableDone} onClick={() => completeSession(r.id)}>✓</button>
@@ -909,7 +962,7 @@ function StudyTimetable({ user }: { user: User }) {
                       return (
                         <div key={id} className="tt-pendingItem">
                           {r.icon} {r.act} <span style={{ color: "#999" }}>({r.dur}m)</span>
-                          <button onClick={() => startSession(id)}>Reschedule Now</button>
+                          <button onClick={() => { setTopicInput(''); setStartPrompt({ id }); }}>Reschedule Now</button>
                         </div>
                       );
                     })
@@ -1016,6 +1069,46 @@ function StudyTimetable({ user }: { user: User }) {
         </div>
       </div>
 
+      {/* START TOPIC PROMPT — asks what you're focusing on before the timer begins */}
+      {startPrompt && (() => {
+        const row = ROWS.find(r => r.id === startPrompt.id);
+        return (
+          <div className="tt-glassOverlay" onClick={() => setStartPrompt(null)}>
+            <div className="tt-glassBox" onClick={(e) => e.stopPropagation()}>
+              <div className="tt-glassHead">
+                <div className="tt-glassIcon">{row?.icon || "▶"}</div>
+                <div>
+                  <div className="tt-glassEyebrow">Starting Session</div>
+                  <div className="tt-glassTitle">{row?.act}</div>
+                </div>
+                <button className="tt-glassClose" onClick={() => setStartPrompt(null)} aria-label="Close">×</button>
+              </div>
+
+              <div className="tt-glassSection">
+                <div className="tt-glassLabel">What are you focusing on? <span className="tt-glassOptional">(optional)</span></div>
+                <textarea
+                  className="tt-glassTextarea"
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  placeholder="e.g. Relay coordination + overcurrent protection numericals"
+                  rows={2}
+                  maxLength={150}
+                  autoFocus
+                />
+                <div className="tt-glassHint">Shows up on the live timer and in your daily email.</div>
+              </div>
+
+              <div className="tt-glassActions">
+                <button className="tt-glassBtn ghost" onClick={() => { setStartPrompt(null); startSession(startPrompt.id); }}>Skip</button>
+                <button className="tt-glassBtn primary" onClick={() => { const id = startPrompt.id; const topic = topicInput; setStartPrompt(null); startSession(id, topic); }}>
+                  ▶ Start Session
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* EXTENSION MODAL — glass-morphism */}
       {extendModal && (() => {
         const row = ROWS.find(r => r.id === extendModal.id);
@@ -1106,22 +1199,42 @@ function StudyTimetable({ user }: { user: User }) {
           );
         }
 
+        const activeAllocSec = (st.durationAllocated ?? active.dur) * 60;
+        const activePct = activeAllocSec > 0
+          ? Math.min(1, Math.max(0, (activeAllocSec - Math.max(0, st.remaining)) / activeAllocSec))
+          : 0;
+        const ringCirc = 2 * Math.PI * 54;
+
         return (
           <div className="tt-timerOverlay">
             <div className={`tt-timerModal ${done ? "done" : ""} ${critical ? "warn" : ""}`}>
+              <button className="tt-tmMinimizeBtn" onClick={() => setTimerMinimized(true)} title="Minimize" aria-label="Minimize">
+                ⌄
+              </button>
+
               <div className="tt-tmHead">
-                <div>
-                  <span className="tt-tmIcon">{active.icon}</span>
-                  <span className="tt-tmTitle">{active.act}</span>
-                  <span className={`tt-statusPill tt-st-${st.status}`}>
-                    {st.status === "notstarted" ? "NOT STARTED" : st.status.toUpperCase()}
-                  </span>
-                </div>
-                <button className="tt-tmCloseBtn" onClick={() => setTimerMinimized(true)}>
-                  🔽 Minimize
-                </button>
+                <span className="tt-tmIcon">{active.icon}</span>
+                <span className="tt-tmTitle">{active.act}</span>
+                <span className={`tt-statusPill tt-st-${st.status}`}>
+                  {st.status === "notstarted" ? "NOT STARTED" : st.status.toUpperCase()}
+                </span>
               </div>
-              <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+              {sessionTopics[active.id] && (
+                <div className="tt-tmTopic">📌 {sessionTopics[active.id]}</div>
+              )}
+
+              <div className="tt-tmRingWrap">
+                <svg className="tt-tmRingSvg" viewBox="0 0 120 120">
+                  <circle className="tt-tmRingTrack" cx="60" cy="60" r="54" />
+                  <circle
+                    className="tt-tmRingFill"
+                    cx="60" cy="60" r="54"
+                    style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
+                  />
+                </svg>
+                <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+              </div>
+
               <div className="tt-tmHint">
                 {done ? "✅ Time complete — you may Complete or Extend." : "Complete and Extension unlock in the final 10 minutes."}
               </div>
@@ -1173,7 +1286,7 @@ function StudyTimetable({ user }: { user: User }) {
           pointer-events: none;
         }
         .tt-timerModal {
-          position: static !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+          position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
           transform: none !important; margin: 0 !important;
           pointer-events: auto;
           width: 100%; max-width: 380px;
@@ -1181,23 +1294,50 @@ function StudyTimetable({ user }: { user: User }) {
           backdrop-filter: blur(28px) saturate(180%);
           border: 1px solid rgba(255,255,255,0.6);
           border-radius: 28px;
-          padding: 26px 26px 22px;
+          padding: 30px 26px 22px;
           box-shadow: 0 30px 70px rgba(15,20,50,0.4), inset 0 1px 0 rgba(255,255,255,0.7);
           color: #1b1e2b; text-align: center;
-          animation: ttGlassIn .3s cubic-bezier(.2,.9,.3,1.2);
+          animation: ttGlassIn .3s cubic-bezier(.2,.9,.3,1.2), ttModalBreathe 4s ease-in-out infinite;
         }
-        .tt-timerModal.warn { border-color: rgba(234,88,12,0.5); box-shadow: 0 30px 70px rgba(234,88,12,0.25), inset 0 1px 0 rgba(255,255,255,0.7); }
-        .tt-timerModal.done { border-color: rgba(34,197,94,0.5); box-shadow: 0 30px 70px rgba(34,197,94,0.25), inset 0 1px 0 rgba(255,255,255,0.7); }
-        .tt-timerModal .tt-tmIcon { font-size: 20px; }
+        @keyframes ttModalBreathe {
+          0%, 100% { box-shadow: 0 30px 70px rgba(15,20,50,0.4), inset 0 1px 0 rgba(255,255,255,0.7); }
+          50% { box-shadow: 0 30px 80px rgba(43,111,214,0.22), inset 0 1px 0 rgba(255,255,255,0.7); }
+        }
+        .tt-timerModal.warn { border-color: rgba(234,88,12,0.5); }
+        .tt-timerModal.done { border-color: rgba(34,197,94,0.5); }
+
+        .tt-tmMinimizeBtn {
+          position: absolute; top: 14px; right: 14px;
+          width: 28px; height: 28px; border-radius: 50%;
+          background: rgba(21,27,77,0.08); color: #4b5563; border: none;
+          font-size: 16px; font-weight: 800; cursor: pointer; line-height: 1;
+          display: flex; align-items: center; justify-content: center;
+          transition: background .15s, transform .15s;
+        }
+        .tt-tmMinimizeBtn:hover { background: rgba(21,27,77,0.16); transform: scale(1.08); }
+
+        .tt-tmHead { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; padding-right: 30px; }
+        .tt-timerModal .tt-tmIcon { font-size: 20px; animation: ttIconPulse 1.8s ease-in-out infinite; }
         .tt-timerModal .tt-tmTitle { font-family: var(--tt-font-display, inherit); font-size: 15px; font-weight: 800; color: #151b4d; }
+
+        .tt-tmRingWrap { position: relative; width: 190px; height: 190px; margin: 14px auto 4px; }
+        .tt-tmRingSvg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .tt-tmRingTrack { fill: none; stroke: rgba(21,27,77,0.1); stroke-width: 8; }
+        .tt-tmRingFill {
+          fill: none; stroke: #2b6fd6; stroke-width: 8; stroke-linecap: round;
+          transition: stroke-dashoffset 1s linear;
+          filter: drop-shadow(0 0 6px rgba(43,111,214,0.6));
+        }
+        .tt-timerModal.warn .tt-tmRingFill { stroke: #ea580c; filter: drop-shadow(0 0 6px rgba(234,88,12,0.6)); }
+        .tt-timerModal.done .tt-tmRingFill { stroke: #16a34a; filter: drop-shadow(0 0 6px rgba(22,163,74,0.6)); }
         .tt-timerModal .tt-tmBig {
-          font-family: monospace; font-size: 52px; font-weight: 800; color: #151b4d;
-          margin: 18px 0 6px 0; letter-spacing: 1px;
+          position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+          font-family: monospace; font-size: 34px; font-weight: 800; color: #151b4d; letter-spacing: 1px;
         }
         .tt-timerModal.warn .tt-tmBig { color: #ea580c; animation: ttPulseWarn 1s ease-in-out infinite; }
         .tt-timerModal.done .tt-tmBig { color: #16a34a; }
         @keyframes ttPulseWarn { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-        .tt-timerModal .tt-tmHint { font-size: 12px; color: #6b7280; margin-bottom: 18px; }
+        .tt-timerModal .tt-tmHint { font-size: 12px; color: #6b7280; margin: 10px 0 18px 0; }
         .tt-timerModal .tt-tmBtns { display: flex; gap: 8px; justify-content: center; }
         .tt-timerModal .tt-tmBtns button {
           flex: 1; padding: 11px 10px; border-radius: 12px; border: none; font-weight: 700; font-size: 13px; cursor: pointer;
@@ -1209,45 +1349,41 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-timerModal .tt-b-pause { background: linear-gradient(145deg,#f2c14e,#e8a92e); color: #151b4d; }
         .tt-timerModal .tt-b-ext { background: rgba(21,27,77,0.08); color: #151b4d; }
         .tt-timerModal .tt-b-done { background: linear-gradient(145deg,#151b4d,#1f2870); color: #f2c14e; }
-        .tt-timerModal .tt-tmCloseBtn {
-          background: rgba(21,27,77,0.08); color: #4b5563; border: none; padding: 6px 12px;
-          border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer;
-        }
-        .tt-timerModal .tt-tmCloseBtn:hover { background: rgba(21,27,77,0.15); }
 
-        /* ===== RUNNING ROW — MAGICAL LIVE ANIMATION ===== */
+        /* ===== RUNNING ROW — MAGICAL LIVE ANIMATION (full-row fill) ===== */
         .tt-rowRUN {
           position: relative; overflow: hidden;
-          background: linear-gradient(90deg, #dbeafe 0%, #eff6ff 20%, #dbeafe 40%, #eff6ff 60%, #dbeafe 80%, #eff6ff 100%);
-          background-size: 200% 100%;
-          animation: ttRowWave 3.5s linear infinite, ttRowHalo 3s ease-in-out infinite;
+          background: linear-gradient(90deg,
+            rgba(59,130,246,0.30) 0%, rgba(59,130,246,0.30) var(--pct, 0%),
+            rgba(255,255,255,0.28) var(--pct, 0%), rgba(255,255,255,0.28) 100%);
+          transition: background 1s linear;
+          animation: ttRowHalo 3s ease-in-out infinite;
         }
         /* Shine sweep — a soft diagonal light pass drifting across the row */
         .tt-rowRUN::before {
           content: "";
           position: absolute; inset: 0;
-          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.7) 50%, transparent 58%);
+          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.75) 50%, transparent 58%);
           background-size: 250% 100%;
           animation: ttShineSweep 2.6s ease-in-out infinite;
           pointer-events: none;
         }
-        /* Real progress fill along the bottom edge — grows with actual elapsed time,
-           not just a decorative loop, so the row visibly fills up as you study */
+        /* Glowing wavefront — a bright vertical edge marking exactly how far
+           you've studied into this session, like a liquid fill line */
         .tt-rowRUN::after {
           content: "";
-          position: absolute; left: 0; bottom: 0; height: 4px;
-          width: calc(var(--pct, 0) * 1%);
-          background: linear-gradient(90deg, #1d4ed8, #3b82f6, #7cc0ff);
-          box-shadow: 0 0 12px 3px rgba(59,130,246,0.75), 0 0 2px rgba(255,255,255,0.9);
-          border-radius: 0 6px 6px 0;
-          transition: width 1s linear;
+          position: absolute; top: 0; bottom: 0; left: var(--pct, 0%);
+          width: 3px; transform: translateX(-50%);
+          background: linear-gradient(180deg, #1d4ed8, #7cc0ff);
+          box-shadow: 0 0 12px 3px rgba(59,130,246,0.8);
+          transition: left 1s linear;
           pointer-events: none;
         }
         .tt-rowRUN .tt-rowIcon {
           display: inline-block; animation: ttIconPulse 1.6s ease-in-out infinite;
           filter: drop-shadow(0 0 7px rgba(43,111,214,0.65));
         }
-        @keyframes ttRowWave { 0% { background-position: 0% 0%; } 100% { background-position: -200% 0%; } }
+        .tt-rowRUN td { position: relative; z-index: 1; } /* keep text above the fill/shine layers */
         @keyframes ttShineSweep { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
         @keyframes ttRowHalo {
           0%, 100% { box-shadow: inset 0 0 0px rgba(59,130,246,0); }
@@ -1255,20 +1391,42 @@ function StudyTimetable({ user }: { user: User }) {
         }
         @keyframes ttIconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
 
+        /* ===== COMPLETED ROW — one-shot celebration pop ===== */
+        .tt-rowDONE { animation: ttDonePop 0.7s ease-out; }
+        @keyframes ttDonePop {
+          0% { transform: scale(0.98); box-shadow: 0 0 0 rgba(34,197,94,0); }
+          45% { transform: scale(1.008); box-shadow: 0 0 26px rgba(34,197,94,0.55); }
+          100% { transform: scale(1); box-shadow: 0 0 0 rgba(34,197,94,0); }
+        }
+
+        /* Topic note shown once you tell the app what you're focusing on */
+        .tt-rowTopic {
+          font-size: 11px; color: #1d4ed8; font-weight: 600; margin-top: 2px;
+          opacity: 0.9;
+        }
+        .tt-tmTopic {
+          font-size: 12px; color: #1d4ed8; font-weight: 600; margin: -6px 0 14px 0;
+          background: rgba(59,130,246,0.1); border-radius: 8px; padding: 6px 10px;
+        }
+
         /* ===== GLASS ACTION BUTTONS / PILLS / PENDING CHIPS ===== */
         .tt-actBtns button {
-          background: rgba(255,255,255,0.55) !important;
-          backdrop-filter: blur(8px) saturate(140%);
-          border: 1px solid rgba(21,27,77,0.12) !important;
+          backdrop-filter: blur(8px) saturate(160%);
           border-radius: 10px !important;
-          box-shadow: 0 2px 6px rgba(21,27,77,0.08);
-          transition: transform .15s, box-shadow .15s, background .15s;
+          box-shadow: 0 2px 8px rgba(21,27,77,0.12);
+          transition: transform .15s, box-shadow .15s, filter .15s;
+          border: 1px solid rgba(255,255,255,0.4) !important;
         }
         .tt-actBtns button:not(:disabled):hover {
-          transform: translateY(-2px);
-          background: rgba(255,255,255,0.85) !important;
-          box-shadow: 0 6px 14px rgba(21,27,77,0.16);
+          transform: translateY(-2px) scale(1.05);
+          filter: brightness(1.08);
+          box-shadow: 0 6px 16px rgba(21,27,77,0.22);
         }
+        .tt-actBtns button:disabled { opacity: 0.35 !important; filter: grayscale(0.4); }
+        .tt-actBtns .tt-b-start { background: linear-gradient(145deg, rgba(34,197,94,0.9), rgba(22,163,74,0.9)) !important; color: #fff !important; }
+        .tt-actBtns .tt-b-pause { background: linear-gradient(145deg, rgba(242,193,78,0.9), rgba(232,169,46,0.9)) !important; color: #151b4d !important; }
+        .tt-actBtns .tt-b-ext { background: linear-gradient(145deg, rgba(139,92,246,0.85), rgba(109,40,217,0.85)) !important; color: #fff !important; }
+        .tt-actBtns .tt-b-done { background: linear-gradient(145deg, rgba(21,27,77,0.92), rgba(31,40,112,0.92)) !important; color: #f2c14e !important; }
         .tt-statusPill {
           backdrop-filter: blur(6px) saturate(150%);
           border-radius: 20px !important;
@@ -1395,6 +1553,8 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-glassBtn.primary:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(21,27,77,0.45); }
 
         /* ===== WHOLE-APP GLASS THEME ===== */
+        .tt-quoteBar { animation: ttQuoteFade .5s ease-out; }
+        @keyframes ttQuoteFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
         .tt-root {
           background: linear-gradient(160deg, #eef1fb 0%, #e6ebfa 35%, #dde5f7 70%, #e9edfb 100%) !important;
           background-attachment: fixed !important;
