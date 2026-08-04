@@ -1417,6 +1417,7 @@
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   animation: ttSheen 7s linear infinite;
 }
 
