@@ -170,15 +170,26 @@ function initChecklist(): Record<string, boolean> {
 function AppWrapper() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [booting, setBooting] = useState(false);
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
 
   useEffect(() => {
     return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      setUser((prev) => {
+        if (currentUser && !prev) setBooting(true);
+        return currentUser;
+      });
       setLoading(false);
     });
   }, []);
+
+  // Study-oriented boot sequence for ~5s right after sign-in
+  useEffect(() => {
+    if (!booting) return;
+    const t = setTimeout(() => setBooting(false), 5000);
+    return () => clearTimeout(t);
+  }, [booting]);
 
   if (loading) {
     return (
@@ -187,6 +198,11 @@ function AppWrapper() {
       </div>
     );
   }
+
+  if (user && booting) {
+    return <StudyLoader name={user.displayName || user.email} />;
+  }
+
 
   if (!user) {
     return (
