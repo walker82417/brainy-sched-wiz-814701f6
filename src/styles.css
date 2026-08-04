@@ -1207,3 +1207,239 @@
     overflow-x: auto;
   }
 }
+
+/* ============================================================
+   Motion polish layer — visual only, no layout/structure change
+   ============================================================ */
+
+@keyframes ttRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ttFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ttSheen {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 280% 0;
+  }
+}
+@keyframes ttBreathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(42, 108, 220, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(42, 108, 220, 0.14);
+  }
+}
+@keyframes ttPopIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.97);
+  }
+  60% {
+    transform: translate3d(0, -2px, 0) scale(1.008);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ttTickIn {
+  from {
+    opacity: 0.35;
+    transform: translate3d(0, -2px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Entrance choreography */
+.tt-header {
+  animation: ttRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tt-examStrip {
+  animation: ttRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+.tt-mainGrid {
+  animation: ttFadeIn 0.6s ease-out 0.1s both;
+}
+.tt-bottomGrid > * {
+  animation: ttRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tt-bottomGrid > *:nth-child(1) {
+  animation-delay: 0.14s;
+}
+.tt-bottomGrid > *:nth-child(2) {
+  animation-delay: 0.22s;
+}
+.tt-bottomGrid > *:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Cards: soft, focused lift */
+.tt-card,
+.tt-examBox,
+.tt-analyticsCard,
+.tt-goldenRules,
+.tt-rememberBox {
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease;
+  will-change: transform;
+}
+.tt-card:hover,
+.tt-examBox:hover,
+.tt-analyticsCard:hover {
+  transform: translate3d(0, -2px, 0);
+  box-shadow: 0 8px 20px -12px rgba(16, 30, 66, 0.4);
+}
+
+/* Table rows: calm, study-friendly focus states */
+.tt-table tbody tr {
+  transition:
+    background-color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+.tt-table tbody tr:hover {
+  background: #f0f4ff !important;
+}
+.tt-rowRUN {
+  animation: ttBreathe 2.6s ease-in-out infinite;
+}
+.tt-rowDONE td {
+  transition: color 0.4s ease;
+}
+
+/* Timers count with a subtle tick */
+.tt-rowTimer,
+.tt-tmBig {
+  transition: color 0.3s ease;
+}
+
+/* Buttons: springy but restrained */
+.tt-actBtns button {
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.18s ease,
+    opacity 0.2s ease;
+}
+.tt-actBtns button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.tt-checklist label,
+.tt-rulesList li,
+.tt-statList li,
+.tt-pendingItem,
+.tt-examTags span {
+  transition:
+    transform 0.2s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+.tt-checklist label:hover,
+.tt-pendingItem:hover {
+  transform: translate3d(2px, 0, 0);
+}
+
+/* Heatmap cells bloom in */
+.tt-heatmapGrid > * {
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.2s ease;
+  animation: ttFadeIn 0.5s ease-out both;
+}
+.tt-heatmapGrid > *:hover {
+  transform: scale(1.28);
+  filter: saturate(1.25);
+}
+
+/* Progress ring gets a gentle glow while a session runs */
+.tt-ringWrap {
+  transition: filter 0.4s ease;
+}
+.tt-ringCanvas {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tt-ringWrap:hover .tt-ringCanvas {
+  transform: scale(1.02);
+}
+
+/* Timer / glass modal motion */
+.tt-timerModal {
+  animation: ttPopIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tt-glassOverlay {
+  animation: ttFadeIn 0.25s ease-out both;
+}
+.tt-glassBox {
+  animation: ttPopIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tt-glassChip {
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.tt-glassChip:hover {
+  transform: translate3d(0, -1px, 0) scale(1.04);
+}
+
+/* Section titles get a slow study-lamp sheen */
+.tt-card h3,
+.tt-analyticsCard h3 {
+  background-image: linear-gradient(
+    100deg,
+    currentColor 0%,
+    currentColor 40%,
+    rgba(242, 193, 78, 0.95) 50%,
+    currentColor 60%,
+    currentColor 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ttSheen 7s linear infinite;
+}
+
+/* Status pills settle smoothly between states */
+.tt-statusPill {
+  transition:
+    background-color 0.35s ease,
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tt-statusPill:hover {
+  transform: scale(1.06);
+}
+.tt-clock {
+  animation: ttTickIn 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-root *,
+  .tt-root *::before,
+  .tt-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
