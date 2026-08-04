@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, googleProvider } from "../firebaseConfig";
+import StudyLoader from "../components/StudyLoader";
+
 
 // === GOOGLE SHEETS SYNC CONFIG ===
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyFbz6Gf4hcGZfDv0aXKS9wZVm9HobFagMVK6ieL2Y0Iy_NB0vTmztA06_0nmNb0hGl/exec";
@@ -170,15 +172,26 @@ function initChecklist(): Record<string, boolean> {
 function AppWrapper() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [booting, setBooting] = useState(false);
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
 
   useEffect(() => {
     return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      setUser((prev) => {
+        if (currentUser && !prev) setBooting(true);
+        return currentUser;
+      });
       setLoading(false);
     });
   }, []);
+
+  // Study-oriented boot sequence for ~5s right after sign-in
+  useEffect(() => {
+    if (!booting) return;
+    const t = setTimeout(() => setBooting(false), 5000);
+    return () => clearTimeout(t);
+  }, [booting]);
 
   if (loading) {
     return (
@@ -187,6 +200,11 @@ function AppWrapper() {
       </div>
     );
   }
+
+  if (user && booting) {
+    return <StudyLoader name={user.displayName || user.email} />;
+  }
+
 
   if (!user) {
     return (

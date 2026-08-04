@@ -1443,3 +1443,55 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* =============================================================
+   MOTION POLISH — popups & task interactions
+   ============================================================= */
+@keyframes ttPopIn {
+  0% { opacity: 0; transform: translateY(14px) scale(0.94); }
+  60% { opacity: 1; transform: translateY(-3px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ttOverlayIn { from { opacity: 0; backdrop-filter: blur(0px); } to { opacity: 1; } }
+@keyframes ttCheckPop { 0% { transform: scale(1); } 45% { transform: scale(1.35) rotate(-6deg); } 100% { transform: scale(1); } }
+@keyframes ttTaskDone {
+  0% { background: transparent; }
+  35% { background: color-mix(in srgb, var(--tt-green, #2a9d5c) 22%, transparent); }
+  100% { background: transparent; }
+}
+@keyframes ttRingPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 193, 78, 0.35); } 50% { box-shadow: 0 0 0 10px rgba(242, 193, 78, 0); } }
+
+.tt-glassOverlay { animation: ttOverlayIn 0.32s ease-out both; }
+.tt-glassBox { animation: ttPopIn 0.42s cubic-bezier(0.22, 1.2, 0.36, 1) both; }
+.tt-timerModal { animation: ttPopIn 0.4s cubic-bezier(0.22, 1.2, 0.36, 1) both; }
+.tt-timerOverlay { animation: ttOverlayIn 0.3s ease-out both; }
+
+.tt-glassChip,
+.tt-tmBtns button,
+.tt-glassActions button {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, filter 0.18s ease;
+}
+.tt-glassChip:hover,
+.tt-tmBtns button:hover,
+.tt-glassActions button:hover { transform: translateY(-2px) scale(1.03); filter: brightness(1.06); }
+.tt-glassChip:active,
+.tt-tmBtns button:active,
+.tt-glassActions button:active { transform: translateY(0) scale(0.97); }
+
+/* Checklist tasks */
+.tt-checklist label {
+  transition: color 0.25s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease;
+  border-radius: 6px;
+}
+.tt-checklist label:hover { transform: translateX(3px); }
+.tt-checklist input[type="checkbox"] { transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.tt-checklist input[type="checkbox"]:checked { animation: ttCheckPop 0.35s ease-out; }
+.tt-checklist input[type="checkbox"]:checked + * { opacity: 0.75; }
+
+/* Task rows: completed flash + running attention ring */
+.tt-table tbody tr { transition: background-color 0.3s ease, transform 0.2s ease; }
+.tt-table tbody tr.done { animation: ttTaskDone 0.9s ease-out; }
+.tt-liveRow { animation: ttRingPulse 2.4s ease-in-out infinite; }
+
+/* Pending mission items slide in */
+.tt-pendingItem { animation: ttPopIn 0.35s cubic-bezier(0.22, 1.2, 0.36, 1) both; }
