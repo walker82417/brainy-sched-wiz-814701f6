@@ -5,7 +5,7 @@ import { onAuthStateChanged, signInWithPopup, User, signInWithEmailAndPassword, 
 import { db, auth, googleProvider } from "../firebaseConfig";
 
 // === GOOGLE SHEETS SYNC CONFIG ===
-const WEB_APP_URL = "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyFbz6Gf4hcGZfDv0aXKS9wZVm9HobFagMVK6ieL2Y0Iy_NB0vTmztA06_0nmNb0hGl/exec";
 const SHARED_SECRET = "rohan-secure-2026";
 
 export const Route = createFileRoute("/")({
