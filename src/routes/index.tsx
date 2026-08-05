@@ -1415,6 +1415,8 @@ function StudyTimetable({ user }: { user: User }) {
         }
         .tt-timerModal.warn .tt-tmRingFill { stroke: #ea580c; filter: drop-shadow(0 0 6px rgba(234,88,12,0.6)); }
         .tt-timerModal.done .tt-tmRingFill { stroke: #16a34a; filter: drop-shadow(0 0 6px rgba(22,163,74,0.6)); }
+        .tt-tmRingMagic { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+        @media (prefers-reduced-motion: reduce) { .tt-tmRingMagic { display: none; } }
         .tt-timerModal .tt-tmBig {
           position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
           font-family: monospace; font-size: 34px; font-weight: 800; color: #151b4d; letter-spacing: 1px;
