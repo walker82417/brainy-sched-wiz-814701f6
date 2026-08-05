@@ -4,6 +4,7 @@ import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, googleProvider } from "../firebaseConfig";
 import StudyLoader from "../components/StudyLoader";
+import TimerRingMagic from "../components/TimerRingMagic";
 
 
 // === GOOGLE SHEETS SYNC CONFIG ===
