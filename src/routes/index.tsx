@@ -572,6 +572,14 @@ function StudyTimetable({ user }: { user: User }) {
     // nowTick keeps this recomputing every second while a session runs
   }, [sessions, nowTick]);
 
+  // Smoothly animated ring: eases toward the live target and never ticks
+  // backwards (avoids the visible "snap back" when a session pauses/reopens).
+  const ringDrawRef = useRef(0);
+  const ringPeakRef = useRef(0);
+  const ringTargetRef = useRef(0);
+  ringPeakRef.current = Math.max(ringPeakRef.current, liveProgress.pct);
+  ringTargetRef.current = ringPeakRef.current;
+
   useEffect(() => {
     const cvs = ringRef.current;
     if (!cvs) return;
@@ -583,25 +591,81 @@ function StudyTimetable({ user }: { user: User }) {
     cvs.style.width = size + "px"; cvs.style.height = size + "px";
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
-    const pct = liveProgress.pct;
-    ctx.clearRect(0, 0, size, size);
+
     const cx = size / 2, cy = size / 2, r = 34, lw = 12;
-    ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.strokeStyle = "#e6e8f0";
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    if (pct > 0) {
-      const grad = ctx.createLinearGradient(0, 0, size, size);
-      grad.addColorStop(0, "#f2c14e");
-      grad.addColorStop(0.5, "#2b6fd6");
-      grad.addColorStop(1, "#2a9d5c");
-      ctx.strokeStyle = grad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "#1f2870"; ctx.font = "700 16px Oswald, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(Math.round(pct * 100) + "%", cx, cy);
-  }, [liveProgress]);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // little sparks that orbit + twinkle inside the ring
+    const sparks = Array.from({ length: 7 }, (_, i) => ({
+      a: (i / 7) * Math.PI * 2,
+      rad: 8 + ((i * 5) % 17),
+      sp: 0.0004 + (i % 3) * 0.00018,
+      ph: i * 1.1,
+    }));
+
+    let raf = 0;
+    const draw = (t: number) => {
+      const target = ringTargetRef.current;
+      // critically-damped-ish easing toward target
+      ringDrawRef.current += (target - ringDrawRef.current) * (reduce ? 1 : 0.08);
+      if (Math.abs(target - ringDrawRef.current) < 0.0005) ringDrawRef.current = target;
+      const pct = ringDrawRef.current;
+
+      ctx.clearRect(0, 0, size, size);
+
+      // track
+      ctx.lineWidth = lw; ctx.lineCap = "round";
+      ctx.strokeStyle = "#e6e8f0";
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+
+      // inner sparkles
+      if (!reduce && pct > 0.001) {
+        sparks.forEach((s) => {
+          const a = s.a + t * s.sp;
+          const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * 0.0016 + s.ph));
+          const x = cx + Math.cos(a) * s.rad;
+          const y = cy + Math.sin(a) * s.rad;
+          ctx.globalAlpha = tw * 0.55 * Math.min(1, pct * 2.2);
+          ctx.fillStyle = "#f2c14e";
+          ctx.beginPath(); ctx.arc(x, y, 1.1 + tw, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+      }
+
+      if (pct > 0) {
+        const grad = ctx.createLinearGradient(0, 0, size, size);
+        grad.addColorStop(0, "#f2c14e");
+        grad.addColorStop(0.5, "#2b6fd6");
+        grad.addColorStop(1, "#2a9d5c");
+        const end = -Math.PI / 2 + Math.PI * 2 * pct;
+        ctx.save();
+        ctx.shadowColor = "rgba(43,111,214,.45)";
+        ctx.shadowBlur = reduce ? 0 : 6 + 3 * Math.sin(t * 0.002);
+        ctx.strokeStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, -Math.PI / 2, end);
+        ctx.stroke();
+        ctx.restore();
+        // leading comet head
+        if (!reduce) {
+          const hx = cx + Math.cos(end) * r, hy = cy + Math.sin(end) * r;
+          const pulse = 2.6 + 0.9 * Math.sin(t * 0.005);
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = "#fff7e0";
+          ctx.beginPath(); ctx.arc(hx, hy, pulse, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      ctx.fillStyle = "#1f2870"; ctx.font = "700 16px Oswald, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(Math.round(pct * 100) + "%", cx, cy);
+
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
 
   /* =========================================================
      ACTIONS (Pushing to Firebase)
@@ -1381,10 +1445,17 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-rowRUN::before {
           content: "";
           position: absolute; inset: 0;
-          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.75) 50%, transparent 58%);
-          background-size: 250% 100%;
-          animation: ttShineSweep 2.6s ease-in-out infinite;
+          background:
+            linear-gradient(100deg, transparent 40%, rgba(255,255,255,0.55) 50%, transparent 60%),
+            radial-gradient(2px 2px at 12% 40%, rgba(242,193,78,.9), transparent 60%),
+            radial-gradient(2px 2px at 38% 70%, rgba(255,255,255,.85), transparent 60%),
+            radial-gradient(2px 2px at 66% 30%, rgba(242,193,78,.8), transparent 60%),
+            radial-gradient(2px 2px at 88% 62%, rgba(255,255,255,.75), transparent 60%);
+          background-size: 250% 100%, auto, auto, auto, auto;
+          animation: ttShineSweep 4.2s cubic-bezier(.45,0,.25,1) infinite,
+                     ttRowSparkle 3.4s ease-in-out infinite;
           pointer-events: none;
+          will-change: background-position, opacity;
         }
         /* Glowing wavefront — a bright vertical edge marking exactly how far
            you've studied into this session, like a liquid fill line */
@@ -1392,22 +1463,26 @@ function StudyTimetable({ user }: { user: User }) {
           content: "";
           position: absolute; top: 0; bottom: 0; left: var(--pct, 0%);
           width: 3px; transform: translateX(-50%);
-          background: linear-gradient(180deg, #1d4ed8, #7cc0ff);
-          box-shadow: 0 0 12px 3px rgba(59,130,246,0.8);
-          transition: left 1s linear;
+          background: linear-gradient(180deg, #1d4ed8, #7cc0ff, #f2c14e);
+          box-shadow: 0 0 12px 3px rgba(59,130,246,0.75);
+          transition: left 1.1s cubic-bezier(.4,0,.2,1);
+          animation: ttWavefront 2.4s ease-in-out infinite;
           pointer-events: none;
         }
         .tt-rowRUN .tt-rowIcon {
-          display: inline-block; animation: ttIconPulse 1.6s ease-in-out infinite;
+          display: inline-block; animation: ttIconPulse 2.4s cubic-bezier(.45,0,.35,1) infinite;
           filter: drop-shadow(0 0 7px rgba(43,111,214,0.65));
         }
         .tt-rowRUN td { position: relative; z-index: 1; } /* keep text above the fill/shine layers */
         @keyframes ttShineSweep { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
+        @keyframes ttRowSparkle { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+        @keyframes ttWavefront { 0%,100% { box-shadow: 0 0 10px 2px rgba(59,130,246,.6) } 50% { box-shadow: 0 0 18px 5px rgba(124,192,255,.85) } }
         @keyframes ttRowHalo {
           0%, 100% { box-shadow: inset 0 0 0px rgba(59,130,246,0); }
           50% { box-shadow: inset 0 0 22px rgba(59,130,246,0.18); }
         }
-        @keyframes ttIconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+        @keyframes ttIconPulse { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.18) rotate(-4deg); } }
+
 
         /* ===== COMPLETED ROW — one-shot celebration pop ===== */
         .tt-rowDONE { animation: ttDonePop 0.7s ease-out; }
