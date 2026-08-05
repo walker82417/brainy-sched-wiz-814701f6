@@ -111,15 +111,27 @@ export default function StudyLoader({ name }: { name?: string | null }) {
         @keyframes slUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
 
         .sl-ticker { position: relative; z-index: 2; height: 20px; overflow: hidden; }
-        .sl-tickerTrack { display: flex; flex-direction: column; animation: slTicker 5s steps(5) forwards; }
+        .sl-tickerTrack { display: flex; flex-direction: column; animation: slTicker 5s cubic-bezier(.65,0,.35,1) forwards; will-change: transform; }
         .sl-tick { height: 20px; line-height: 20px; font-size: 13px; letter-spacing: .5px; opacity: .8; }
-        @keyframes slTicker { from { transform: translateY(0) } to { transform: translateY(-80px) } }
+        @keyframes slTicker {
+          0%   { transform: translateY(0) }
+          14%  { transform: translateY(0) }
+          25%  { transform: translateY(-20px) }
+          39%  { transform: translateY(-20px) }
+          50%  { transform: translateY(-40px) }
+          64%  { transform: translateY(-40px) }
+          75%  { transform: translateY(-60px) }
+          89%  { transform: translateY(-60px) }
+          100% { transform: translateY(-80px) }
+        }
 
         .sl-bar { position: relative; z-index: 2; width: 240px; height: 5px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
         .sl-bar span { display: block; height: 100%; width: 0; border-radius: 99px;
           background: linear-gradient(90deg,#f2c14e,#3b82f6,#22c55e);
-          animation: slBar 5s cubic-bezier(.4,.05,.2,1) forwards; }
-        @keyframes slBar { to { width: 100% } }
+          box-shadow: 0 0 12px rgba(242,193,78,.5);
+          animation: slBar 5s cubic-bezier(.25,.6,.25,1) forwards; will-change: width; }
+        @keyframes slBar { 0% { width: 0 } 40% { width: 52% } 75% { width: 82% } 100% { width: 100% } }
+
 
         @media (prefers-reduced-motion: reduce) {
           .sl-root *, .sl-root { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
