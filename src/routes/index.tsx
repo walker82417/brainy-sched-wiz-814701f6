@@ -1445,10 +1445,17 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-rowRUN::before {
           content: "";
           position: absolute; inset: 0;
-          background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.75) 50%, transparent 58%);
-          background-size: 250% 100%;
-          animation: ttShineSweep 2.6s ease-in-out infinite;
+          background:
+            linear-gradient(100deg, transparent 40%, rgba(255,255,255,0.55) 50%, transparent 60%),
+            radial-gradient(2px 2px at 12% 40%, rgba(242,193,78,.9), transparent 60%),
+            radial-gradient(2px 2px at 38% 70%, rgba(255,255,255,.85), transparent 60%),
+            radial-gradient(2px 2px at 66% 30%, rgba(242,193,78,.8), transparent 60%),
+            radial-gradient(2px 2px at 88% 62%, rgba(255,255,255,.75), transparent 60%);
+          background-size: 250% 100%, auto, auto, auto, auto;
+          animation: ttShineSweep 4.2s cubic-bezier(.45,0,.25,1) infinite,
+                     ttRowSparkle 3.4s ease-in-out infinite;
           pointer-events: none;
+          will-change: background-position, opacity;
         }
         /* Glowing wavefront — a bright vertical edge marking exactly how far
            you've studied into this session, like a liquid fill line */
@@ -1456,22 +1463,26 @@ function StudyTimetable({ user }: { user: User }) {
           content: "";
           position: absolute; top: 0; bottom: 0; left: var(--pct, 0%);
           width: 3px; transform: translateX(-50%);
-          background: linear-gradient(180deg, #1d4ed8, #7cc0ff);
-          box-shadow: 0 0 12px 3px rgba(59,130,246,0.8);
-          transition: left 1s linear;
+          background: linear-gradient(180deg, #1d4ed8, #7cc0ff, #f2c14e);
+          box-shadow: 0 0 12px 3px rgba(59,130,246,0.75);
+          transition: left 1.1s cubic-bezier(.4,0,.2,1);
+          animation: ttWavefront 2.4s ease-in-out infinite;
           pointer-events: none;
         }
         .tt-rowRUN .tt-rowIcon {
-          display: inline-block; animation: ttIconPulse 1.6s ease-in-out infinite;
+          display: inline-block; animation: ttIconPulse 2.4s cubic-bezier(.45,0,.35,1) infinite;
           filter: drop-shadow(0 0 7px rgba(43,111,214,0.65));
         }
         .tt-rowRUN td { position: relative; z-index: 1; } /* keep text above the fill/shine layers */
         @keyframes ttShineSweep { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
+        @keyframes ttRowSparkle { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+        @keyframes ttWavefront { 0%,100% { box-shadow: 0 0 10px 2px rgba(59,130,246,.6) } 50% { box-shadow: 0 0 18px 5px rgba(124,192,255,.85) } }
         @keyframes ttRowHalo {
           0%, 100% { box-shadow: inset 0 0 0px rgba(59,130,246,0); }
           50% { box-shadow: inset 0 0 22px rgba(59,130,246,0.18); }
         }
-        @keyframes ttIconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+        @keyframes ttIconPulse { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.18) rotate(-4deg); } }
+
 
         /* ===== COMPLETED ROW — one-shot celebration pop ===== */
         .tt-rowDONE { animation: ttDonePop 0.7s ease-out; }
