@@ -572,6 +572,14 @@ function StudyTimetable({ user }: { user: User }) {
     // nowTick keeps this recomputing every second while a session runs
   }, [sessions, nowTick]);
 
+  // Smoothly animated ring: eases toward the live target and never ticks
+  // backwards (avoids the visible "snap back" when a session pauses/reopens).
+  const ringDrawRef = useRef(0);
+  const ringPeakRef = useRef(0);
+  const ringTargetRef = useRef(0);
+  ringPeakRef.current = Math.max(ringPeakRef.current, liveProgress.pct);
+  ringTargetRef.current = ringPeakRef.current;
+
   useEffect(() => {
     const cvs = ringRef.current;
     if (!cvs) return;
@@ -583,25 +591,81 @@ function StudyTimetable({ user }: { user: User }) {
     cvs.style.width = size + "px"; cvs.style.height = size + "px";
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
-    const pct = liveProgress.pct;
-    ctx.clearRect(0, 0, size, size);
+
     const cx = size / 2, cy = size / 2, r = 34, lw = 12;
-    ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.strokeStyle = "#e6e8f0";
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    if (pct > 0) {
-      const grad = ctx.createLinearGradient(0, 0, size, size);
-      grad.addColorStop(0, "#f2c14e");
-      grad.addColorStop(0.5, "#2b6fd6");
-      grad.addColorStop(1, "#2a9d5c");
-      ctx.strokeStyle = grad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "#1f2870"; ctx.font = "700 16px Oswald, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(Math.round(pct * 100) + "%", cx, cy);
-  }, [liveProgress]);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // little sparks that orbit + twinkle inside the ring
+    const sparks = Array.from({ length: 7 }, (_, i) => ({
+      a: (i / 7) * Math.PI * 2,
+      rad: 8 + ((i * 5) % 17),
+      sp: 0.0004 + (i % 3) * 0.00018,
+      ph: i * 1.1,
+    }));
+
+    let raf = 0;
+    const draw = (t: number) => {
+      const target = ringTargetRef.current;
+      // critically-damped-ish easing toward target
+      ringDrawRef.current += (target - ringDrawRef.current) * (reduce ? 1 : 0.08);
+      if (Math.abs(target - ringDrawRef.current) < 0.0005) ringDrawRef.current = target;
+      const pct = ringDrawRef.current;
+
+      ctx.clearRect(0, 0, size, size);
+
+      // track
+      ctx.lineWidth = lw; ctx.lineCap = "round";
+      ctx.strokeStyle = "#e6e8f0";
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+
+      // inner sparkles
+      if (!reduce && pct > 0.001) {
+        sparks.forEach((s) => {
+          const a = s.a + t * s.sp;
+          const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * 0.0016 + s.ph));
+          const x = cx + Math.cos(a) * s.rad;
+          const y = cy + Math.sin(a) * s.rad;
+          ctx.globalAlpha = tw * 0.55 * Math.min(1, pct * 2.2);
+          ctx.fillStyle = "#f2c14e";
+          ctx.beginPath(); ctx.arc(x, y, 1.1 + tw, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+      }
+
+      if (pct > 0) {
+        const grad = ctx.createLinearGradient(0, 0, size, size);
+        grad.addColorStop(0, "#f2c14e");
+        grad.addColorStop(0.5, "#2b6fd6");
+        grad.addColorStop(1, "#2a9d5c");
+        const end = -Math.PI / 2 + Math.PI * 2 * pct;
+        ctx.save();
+        ctx.shadowColor = "rgba(43,111,214,.45)";
+        ctx.shadowBlur = reduce ? 0 : 6 + 3 * Math.sin(t * 0.002);
+        ctx.strokeStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, -Math.PI / 2, end);
+        ctx.stroke();
+        ctx.restore();
+        // leading comet head
+        if (!reduce) {
+          const hx = cx + Math.cos(end) * r, hy = cy + Math.sin(end) * r;
+          const pulse = 2.6 + 0.9 * Math.sin(t * 0.005);
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = "#fff7e0";
+          ctx.beginPath(); ctx.arc(hx, hy, pulse, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      ctx.fillStyle = "#1f2870"; ctx.font = "700 16px Oswald, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(Math.round(pct * 100) + "%", cx, cy);
+
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
 
   /* =========================================================
      ACTIONS (Pushing to Firebase)
