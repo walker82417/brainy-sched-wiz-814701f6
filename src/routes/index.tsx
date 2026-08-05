@@ -1315,8 +1315,10 @@ function StudyTimetable({ user }: { user: User }) {
                     style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
                   />
                 </svg>
+                <TimerRingMagic pct={activePct} tone={done ? "done" : critical ? "warn" : "run"} />
                 <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
               </div>
+
 
               <div className="tt-tmHint">
                 {done ? "✅ Time complete — you may Complete or Extend." : "Complete and Extension unlock in the final 10 minutes."}
