@@ -4,6 +4,7 @@ import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, googleProvider } from "../firebaseConfig";
 import StudyLoader from "../components/StudyLoader";
+import TimerRingMagic from "../components/TimerRingMagic";
 
 
 // === GOOGLE SHEETS SYNC CONFIG ===
@@ -1314,8 +1315,10 @@ function StudyTimetable({ user }: { user: User }) {
                     style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
                   />
                 </svg>
+                <TimerRingMagic pct={activePct} tone={done ? "done" : critical ? "warn" : "run"} />
                 <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
               </div>
+
 
               <div className="tt-tmHint">
                 {done ? "✅ Time complete — you may Complete or Extend." : "Complete and Extension unlock in the final 10 minutes."}
@@ -1412,6 +1415,8 @@ function StudyTimetable({ user }: { user: User }) {
         }
         .tt-timerModal.warn .tt-tmRingFill { stroke: #ea580c; filter: drop-shadow(0 0 6px rgba(234,88,12,0.6)); }
         .tt-timerModal.done .tt-tmRingFill { stroke: #16a34a; filter: drop-shadow(0 0 6px rgba(22,163,74,0.6)); }
+        .tt-tmRingMagic { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+        @media (prefers-reduced-motion: reduce) { .tt-tmRingMagic { display: none; } }
         .tt-timerModal .tt-tmBig {
           position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
           font-family: monospace; font-size: 34px; font-weight: 800; color: #151b4d; letter-spacing: 1px;
