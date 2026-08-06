@@ -728,8 +728,21 @@ function StudyTimetable({ user }: { user: User }) {
 
     playCompleteChime();
     setSessions(nextSessions);
-    updateToday({ sessions: nextSessions, completedLog: newLog, checklist: newChecklist, pending: pending.filter((x) => x !== id) });
-    updateUserStats({ [`heatmapLog.${todayKey()}`]: (heatmapLog[todayKey()] || 0) + 1 });
+    const todaysCount = newLog.filter((l) => l.date === todayKey()).length;
+    updateToday({
+      sessions: nextSessions,
+      completedLog: newLog,
+      checklist: newChecklist,
+      pending: pending.filter((x) => x !== id),
+      sessionsCompleted: todaysCount,
+      minutesCompleted: newLog.filter((l) => l.date === todayKey()).reduce((a, l) => a + l.durMin, 0),
+    });
+    // NOTE: must be a nested map, not a "heatmapLog.<date>" dotted key — setDoc()
+    // treats dotted strings as literal field names, which is why the email engine
+    // was reading 0 sessions.
+    const nextHeat = { ...heatmapLog, [todayKey()]: (heatmapLog[todayKey()] || 0) + 1 };
+    setHeatmapLog(nextHeat);
+    updateUserStats({ heatmapLog: { [todayKey()]: nextHeat[todayKey()] } });
 
     // Sync this event to Google Sheets
     postToSheet({ row: row.act, cat: row.cat, minutes: finalDur, status: "completed" }, "session_completed");
@@ -768,7 +781,9 @@ function StudyTimetable({ user }: { user: User }) {
 
     if (reopened) {
        newLog = completedLog.filter(log => !(log.date === todayKey() && log.rowId === id));
-       updateUserStats({ [`heatmapLog.${todayKey()}`]: Math.max((heatmapLog[todayKey()] || 1) - 1, 0) });
+       const decHeat = { ...heatmapLog, [todayKey()]: Math.max((heatmapLog[todayKey()] || 1) - 1, 0) };
+       setHeatmapLog(decHeat);
+       updateUserStats({ heatmapLog: { [todayKey()]: decHeat[todayKey()] } });
 
        const checklistItem = ROW_CHECKLIST_MAP[id];
        if (checklistItem) {
@@ -800,6 +815,8 @@ function StudyTimetable({ user }: { user: User }) {
       completedLog: newLog,
       checklist: newChecklist,
       extensionLog: [...extensionLog, extensionEntry],
+      sessionsCompleted: newLog.filter((l) => l.date === todayKey()).length,
+      minutesCompleted: newLog.filter((l) => l.date === todayKey()).reduce((a, l) => a + l.durMin, 0),
     });
 
     // Sync to Google Sheets
