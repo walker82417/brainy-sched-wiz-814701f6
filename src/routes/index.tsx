@@ -1306,17 +1306,40 @@ function StudyTimetable({ user }: { user: User }) {
                 <div className="tt-tmTopic">📌 {sessionTopics[active.id]}</div>
               )}
 
-              <div className="tt-tmRingWrap">
-                <svg className="tt-tmRingSvg" viewBox="0 0 120 120">
-                  <circle className="tt-tmRingTrack" cx="60" cy="60" r="54" />
-                  <circle
-                    className="tt-tmRingFill"
-                    cx="60" cy="60" r="54"
-                    style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
-                  />
-                </svg>
-                <TimerRingMagic pct={activePct} tone={done ? "done" : critical ? "warn" : "run"} />
-                <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+              <div className="tt-tmRingRow">
+                {(() => {
+                  const keys: ExamKey[] = active.cat === "technical" ? ["gate", "ese"] : (active.cat === "aptitude" || active.cat === "gs") ? ["ssc"] : [];
+                  const badge = (key: ExamKey, side: "L" | "R") => {
+                    const e = examDates[key];
+                    const c = mounted ? countdownParts(e.date) : { d: 0, h: 0, m: 0, s: 0 };
+                    return (
+                      <div className={`tt-tmMission ${key} ${side === "L" ? "left" : "right"}`} key={key}>
+                        <div className="tt-tmMissionTag">MISSION</div>
+                        <div className="tt-tmMissionName">{e.label}</div>
+                        <div className="tt-tmMissionDays">{mounted ? c.d : "--"}<span>d</span></div>
+                        <div className="tt-tmMissionSub">{mounted ? `${String(c.h).padStart(2, "0")}h ${String(c.m).padStart(2, "0")}m` : "--"}</div>
+                      </div>
+                    );
+                  };
+                  return (
+                    <>
+                      <div className="tt-tmMissionCol">{keys[0] ? badge(keys[0], "L") : null}</div>
+                      <div className="tt-tmRingWrap">
+                        <svg className="tt-tmRingSvg" viewBox="0 0 120 120">
+                          <circle className="tt-tmRingTrack" cx="60" cy="60" r="54" />
+                          <circle
+                            className="tt-tmRingFill"
+                            cx="60" cy="60" r="54"
+                            style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
+                          />
+                        </svg>
+                        <TimerRingMagic pct={activePct} tone={done ? "done" : critical ? "warn" : "run"} />
+                        <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+                      </div>
+                      <div className="tt-tmMissionCol">{keys[1] ? badge(keys[1], "R") : keys[0] && keys.length === 1 ? null : null}</div>
+                    </>
+                  );
+                })()}
               </div>
 
 
@@ -1374,7 +1397,7 @@ function StudyTimetable({ user }: { user: User }) {
           position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
           transform: none !important; margin: 0 !important;
           pointer-events: auto;
-          width: 100%; max-width: 380px;
+          width: 100%; max-width: 520px;
           background: linear-gradient(160deg, rgba(255,255,255,0.85), rgba(255,255,255,0.6));
           backdrop-filter: blur(28px) saturate(180%);
           border: 1px solid rgba(255,255,255,0.6);
@@ -1405,7 +1428,25 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-timerModal .tt-tmIcon { font-size: 20px; animation: ttIconPulse 1.8s ease-in-out infinite; }
         .tt-timerModal .tt-tmTitle { font-family: var(--tt-font-display, inherit); font-size: 15px; font-weight: 800; color: #151b4d; }
 
-        .tt-tmRingWrap { position: relative; width: 190px; height: 190px; margin: 14px auto 4px; }
+        .tt-tmRingRow { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0 4px; }
+        .tt-tmMissionCol { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; }
+        .tt-tmMission {
+          width: 100%; max-width: 118px; padding: 10px 8px; border-radius: 16px; text-align: center;
+          background: linear-gradient(160deg, rgba(255,255,255,0.75), rgba(255,255,255,0.45));
+          border: 1px solid rgba(255,255,255,0.7);
+          box-shadow: 0 10px 24px rgba(15,20,50,0.12), inset 0 1px 0 rgba(255,255,255,0.8);
+          animation: ttGlassIn .45s cubic-bezier(.2,.9,.3,1.2) both;
+        }
+        .tt-tmMission.right { animation-delay: .08s; }
+        .tt-tmMissionTag { font-size: 8px; letter-spacing: 1.4px; font-weight: 800; color: #6b7280; }
+        .tt-tmMissionName { font-family: var(--tt-font-display, inherit); font-size: 11px; font-weight: 800; color: #151b4d; line-height: 1.15; margin: 2px 0 4px; }
+        .tt-tmMissionDays { font-size: 24px; font-weight: 900; line-height: 1; color: #2b6fd6; }
+        .tt-tmMissionDays span { font-size: 11px; font-weight: 800; margin-left: 2px; opacity: .75; }
+        .tt-tmMissionSub { font-size: 9px; font-weight: 700; color: #6b7280; margin-top: 3px; letter-spacing: .5px; }
+        .tt-tmMission.gate .tt-tmMissionDays { color: #7c3aed; }
+        .tt-tmMission.ese .tt-tmMissionDays { color: #2b6fd6; }
+        .tt-tmMission.ssc .tt-tmMissionDays { color: #16a34a; }
+        .tt-tmRingWrap { position: relative; width: 190px; height: 190px; margin: 0 auto; flex: 0 0 auto; }
         .tt-tmRingSvg { width: 100%; height: 100%; transform: rotate(-90deg); }
         .tt-tmRingTrack { fill: none; stroke: rgba(21,27,77,0.1); stroke-width: 8; }
         .tt-tmRingFill {
