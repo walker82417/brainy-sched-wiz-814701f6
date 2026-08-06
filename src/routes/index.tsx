@@ -728,8 +728,21 @@ function StudyTimetable({ user }: { user: User }) {
 
     playCompleteChime();
     setSessions(nextSessions);
-    updateToday({ sessions: nextSessions, completedLog: newLog, checklist: newChecklist, pending: pending.filter((x) => x !== id) });
-    updateUserStats({ [`heatmapLog.${todayKey()}`]: (heatmapLog[todayKey()] || 0) + 1 });
+    const todaysCount = newLog.filter((l) => l.date === todayKey()).length;
+    updateToday({
+      sessions: nextSessions,
+      completedLog: newLog,
+      checklist: newChecklist,
+      pending: pending.filter((x) => x !== id),
+      sessionsCompleted: todaysCount,
+      minutesCompleted: newLog.filter((l) => l.date === todayKey()).reduce((a, l) => a + l.durMin, 0),
+    });
+    // NOTE: must be a nested map, not a "heatmapLog.<date>" dotted key — setDoc()
+    // treats dotted strings as literal field names, which is why the email engine
+    // was reading 0 sessions.
+    const nextHeat = { ...heatmapLog, [todayKey()]: (heatmapLog[todayKey()] || 0) + 1 };
+    setHeatmapLog(nextHeat);
+    updateUserStats({ heatmapLog: { [todayKey()]: nextHeat[todayKey()] } });
 
     // Sync this event to Google Sheets
     postToSheet({ row: row.act, cat: row.cat, minutes: finalDur, status: "completed" }, "session_completed");
