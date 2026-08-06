@@ -781,7 +781,9 @@ function StudyTimetable({ user }: { user: User }) {
 
     if (reopened) {
        newLog = completedLog.filter(log => !(log.date === todayKey() && log.rowId === id));
-       updateUserStats({ [`heatmapLog.${todayKey()}`]: Math.max((heatmapLog[todayKey()] || 1) - 1, 0) });
+       const decHeat = { ...heatmapLog, [todayKey()]: Math.max((heatmapLog[todayKey()] || 1) - 1, 0) };
+       setHeatmapLog(decHeat);
+       updateUserStats({ heatmapLog: { [todayKey()]: decHeat[todayKey()] } });
 
        const checklistItem = ROW_CHECKLIST_MAP[id];
        if (checklistItem) {
