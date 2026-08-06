@@ -1397,7 +1397,7 @@ function StudyTimetable({ user }: { user: User }) {
           position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
           transform: none !important; margin: 0 !important;
           pointer-events: auto;
-          width: 100%; max-width: 380px;
+          width: 100%; max-width: 520px;
           background: linear-gradient(160deg, rgba(255,255,255,0.85), rgba(255,255,255,0.6));
           backdrop-filter: blur(28px) saturate(180%);
           border: 1px solid rgba(255,255,255,0.6);
