@@ -1306,17 +1306,40 @@ function StudyTimetable({ user }: { user: User }) {
                 <div className="tt-tmTopic">📌 {sessionTopics[active.id]}</div>
               )}
 
-              <div className="tt-tmRingWrap">
-                <svg className="tt-tmRingSvg" viewBox="0 0 120 120">
-                  <circle className="tt-tmRingTrack" cx="60" cy="60" r="54" />
-                  <circle
-                    className="tt-tmRingFill"
-                    cx="60" cy="60" r="54"
-                    style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
-                  />
-                </svg>
-                <TimerRingMagic pct={activePct} tone={done ? "done" : critical ? "warn" : "run"} />
-                <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+              <div className="tt-tmRingRow">
+                {(() => {
+                  const keys: ExamKey[] = active.cat === "technical" ? ["gate", "ese"] : (active.cat === "aptitude" || active.cat === "gs") ? ["ssc"] : [];
+                  const badge = (key: ExamKey, side: "L" | "R") => {
+                    const e = examDates[key];
+                    const c = mounted ? countdownParts(e.date) : { d: 0, h: 0, m: 0, s: 0 };
+                    return (
+                      <div className={`tt-tmMission ${key} ${side === "L" ? "left" : "right"}`} key={key}>
+                        <div className="tt-tmMissionTag">MISSION</div>
+                        <div className="tt-tmMissionName">{e.label}</div>
+                        <div className="tt-tmMissionDays">{mounted ? c.d : "--"}<span>d</span></div>
+                        <div className="tt-tmMissionSub">{mounted ? `${String(c.h).padStart(2, "0")}h ${String(c.m).padStart(2, "0")}m` : "--"}</div>
+                      </div>
+                    );
+                  };
+                  return (
+                    <>
+                      <div className="tt-tmMissionCol">{keys[0] ? badge(keys[0], "L") : null}</div>
+                      <div className="tt-tmRingWrap">
+                        <svg className="tt-tmRingSvg" viewBox="0 0 120 120">
+                          <circle className="tt-tmRingTrack" cx="60" cy="60" r="54" />
+                          <circle
+                            className="tt-tmRingFill"
+                            cx="60" cy="60" r="54"
+                            style={{ strokeDasharray: ringCirc, strokeDashoffset: ringCirc * (1 - activePct) }}
+                          />
+                        </svg>
+                        <TimerRingMagic pct={activePct} tone={done ? "done" : critical ? "warn" : "run"} />
+                        <div className="tt-tmBig">{fmtTime(st.remaining)}</div>
+                      </div>
+                      <div className="tt-tmMissionCol">{keys[1] ? badge(keys[1], "R") : keys[0] && keys.length === 1 ? null : null}</div>
+                    </>
+                  );
+                })()}
               </div>
 
 
