@@ -815,6 +815,8 @@ function StudyTimetable({ user }: { user: User }) {
       completedLog: newLog,
       checklist: newChecklist,
       extensionLog: [...extensionLog, extensionEntry],
+      sessionsCompleted: newLog.filter((l) => l.date === todayKey()).length,
+      minutesCompleted: newLog.filter((l) => l.date === todayKey()).reduce((a, l) => a + l.durMin, 0),
     });
 
     // Sync to Google Sheets
