@@ -1110,7 +1110,17 @@ function StudyTimetable({ user }: { user: User }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {isSunday && (!sundayPlan || sundayPlan.length === 0) && (
+                    <tr className="tt-rowLIFE">
+                      <td className="tt-rowIcon">🗓</td>
+                      <td colSpan={6} style={{ textAlign: "center", padding: "18px" }}>
+                        <b>Sunday is yours to design.</b>{" "}
+                        <button className="tt-sundayBtn" onClick={openSundayPlanner}>Plan your Sunday</button>
+                      </td>
+                    </tr>
+                  )}
                   {activeRows.map((r) => {
+
                     if (!isFocusRow(r)) {
                       return (
                         <tr key={r.id} className="tt-rowLIFE">
