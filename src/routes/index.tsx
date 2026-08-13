@@ -1092,6 +1092,12 @@ function StudyTimetable({ user }: { user: User }) {
               <span className="tt-syncDot" aria-hidden="true" style={{ background: '#22c55e', width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
               <span>Firebase Database Synced ⚡ ({user.email})</span>
             </div>
+            {isSunday && (
+              <button className="tt-sundayBtn" onClick={openSundayPlanner}>
+                🗓 {sundayPlan && sundayPlan.length ? "Re-plan Sunday" : "Plan your Sunday"}
+              </button>
+            )}
+
           </div>
 
           {/* MAIN GRID */}
