@@ -402,6 +402,24 @@ function StudyTimetable({ user }: { user: User }) {
   const [sessionTopics, setSessionTopics] = useState<Record<number, string>>({});
   const [startTopic, setStartTopic] = useState<string>('');
 
+  // Sunday custom-day planner
+  const [sundayPlan, setSundayPlan] = useState<SundayEntry[] | null>(null);
+  const [sundayModal, setSundayModal] = useState(false);
+  const [sundayDismissed, setSundayDismissed] = useState(false);
+  const [sundayDraft, setSundayDraft] = useState<SundayEntry[]>([]);
+  const [sdSubject, setSdSubject] = useState<string>(SUBJECT_PRESETS[0]?.act || "");
+  const [sdCustom, setSdCustom] = useState<string>("");
+  const [sdStart, setSdStart] = useState<string>("07:00");
+  const [sdDur, setSdDur] = useState<number>(60);
+
+  const isSunday = mounted && new Date().getDay() === 0;
+  const activeRows = useMemo(
+    () => (isSunday && sundayPlan && sundayPlan.length ? buildSundayRows(sundayPlan) : ROWS),
+    [isSunday, sundayPlan],
+  );
+
+
+
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
