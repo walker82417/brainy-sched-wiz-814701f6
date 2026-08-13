@@ -605,7 +605,47 @@ function StudyTimetable({ user }: { user: User }) {
     return () => window.clearInterval(id);
   }, [sessions, timeShift, mounted, pending]);
 
-  const totalFocus = useMemo(() => activeRows.filter(isFocusRow).length, []);
+  const totalFocus = useMemo(() => activeRows.filter(isFocusRow).length, [activeRows]);
+
+  // Ask for the Sunday plan once the day's data is loaded and nothing is planned yet.
+  useEffect(() => {
+    if (!mounted || !isSunday || sundayDismissed) return;
+    if (!sundayPlan || sundayPlan.length === 0) setSundayModal(true);
+  }, [mounted, isSunday, sundayPlan, sundayDismissed]);
+
+  const openSundayPlanner = () => {
+    setSundayDraft(sundayPlan ? [...sundayPlan] : []);
+    setSundayModal(true);
+  };
+
+  const addSundayEntry = () => {
+    const custom = sdCustom.trim();
+    const preset = SUBJECT_PRESETS.find((p) => p.act === sdSubject);
+    const entry: SundayEntry = {
+      subject: custom || preset?.act || "STUDY SESSION",
+      cat: custom ? "technical" : preset?.cat || "technical",
+      icon: custom ? "📚" : preset?.icon || "📚",
+      focus: custom ? "Sunday custom mission" : preset?.focus || "Sunday custom mission",
+      startMin: clockToMins(sdStart),
+      dur: Math.max(5, Number(sdDur) || 0),
+    };
+    setSundayDraft((d) => [...d, entry].sort((a, b) => a.startMin - b.startMin));
+    setSdCustom("");
+    setSdStart(minsToInput(Math.min(1439, entry.startMin + entry.dur)));
+  };
+
+  const saveSundayPlan = () => {
+    const plan = [...sundayDraft].sort((a, b) => a.startMin - b.startMin);
+    const rows = buildSundayRows(plan);
+    const nextSessions = initSessions(rows);
+    // keep any progress already made on a row that still exists in the new plan
+    rows.forEach((r) => { if (sessions[r.id]) nextSessions[r.id] = sessions[r.id]; });
+    setSundayPlan(plan);
+    setSessions(nextSessions);
+    setSundayModal(false);
+    updateToday({ sundayPlan: plan, sessions: nextSessions });
+  };
+
   const doneToday = useMemo(() => completedLog.filter((l) => l.date === todayKey()), [completedLog]);
   const streak = useMemo(() => {
     let s = 0; const d = new Date();
