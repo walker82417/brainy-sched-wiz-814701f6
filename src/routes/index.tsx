@@ -155,9 +155,9 @@ function countdownParts(dateStr: string) {
   return { d, h, m, s };
 }
 
-function initSessions(): Record<number, SessionRec> {
+function initSessions(rows: Row[] = ROWS): Record<number, SessionRec> {
   const out: Record<number, SessionRec> = {};
-  ROWS.forEach((r) => { out[r.id] = { status: "notstarted", remaining: r.dur * 60, endTs: null, warned: false, durationAllocated: r.dur }; });
+  rows.forEach((r) => { out[r.id] = { status: "notstarted", remaining: r.dur * 60, endTs: null, warned: false, durationAllocated: r.dur }; });
   return out;
 }
 
@@ -166,6 +166,48 @@ function initChecklist(): Record<string, boolean> {
   CHECKLIST_ITEMS.forEach((it) => (out[it] = false));
   return out;
 }
+
+/* =============================================================
+   SUNDAY CUSTOM DAY
+   ============================================================= */
+type SundayEntry = { subject: string; cat: Row["cat"]; icon: string; focus: string; startMin: number; dur: number };
+
+const SUNDAY_ID_BASE = 100;
+
+const SUBJECT_PRESETS = ROWS.filter(isFocusRow).map((r) => ({ act: r.act, cat: r.cat, icon: r.icon, focus: r.focus }));
+
+function buildSundayRows(entries: SundayEntry[]): Row[] {
+  return [...entries]
+    .sort((a, b) => a.startMin - b.startMin)
+    .map((e, i) => ({
+      id: SUNDAY_ID_BASE + i,
+      time: `${minsToClock(e.startMin)} – ${minsToClock(e.startMin + e.dur)}`,
+      startMin: e.startMin,
+      dur: e.dur,
+      act: e.subject,
+      focus: e.focus || "Sunday custom mission",
+      cat: e.cat,
+      icon: e.icon,
+    }));
+}
+
+function clockToMins(v: string) {
+  const [h, m] = v.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function minsToInput(mins: number) {
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
+function sundayOverlaps(entries: SundayEntry[]) {
+  const sorted = [...entries].sort((a, b) => a.startMin - b.startMin);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].startMin < sorted[i - 1].startMin + sorted[i - 1].dur) return true;
+  }
+  return false;
+}
+
 
 /* =============================================================
    AUTHENTICATION WRAPPER
