@@ -503,7 +503,7 @@ function StudyTimetable({ user }: { user: User }) {
     let changed = false;
     const nextSessions = { ...sessions };
     const toComplete: number[] = [];
-    ROWS.forEach((r) => {
+    activeRows.forEach((r) => {
       if (!isFocusRow(r)) return;
       const st = nextSessions[r.id];
       if (st && st.status === "running" && st.endTs) {
@@ -522,7 +522,7 @@ function StudyTimetable({ user }: { user: User }) {
       const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
       const nextPending = [...pending];
       let pendingChanged = false;
-      ROWS.forEach((r) => {
+      activeRows.forEach((r) => {
         if (!isFocusRow(r)) return;
         const st = sessions[r.id];
         const endMin = r.startMin + r.dur + timeShift;
@@ -541,7 +541,7 @@ function StudyTimetable({ user }: { user: User }) {
     return () => window.clearInterval(id);
   }, [sessions, timeShift, mounted, pending]);
 
-  const totalFocus = useMemo(() => ROWS.filter(isFocusRow).length, []);
+  const totalFocus = useMemo(() => activeRows.filter(isFocusRow).length, []);
   const doneToday = useMemo(() => completedLog.filter((l) => l.date === todayKey()), [completedLog]);
   const streak = useMemo(() => {
     let s = 0; const d = new Date();
@@ -557,7 +557,7 @@ function StudyTimetable({ user }: { user: User }) {
   const liveProgress = useMemo(() => {
     let allocated = 0;
     let studied = 0;
-    ROWS.forEach((r) => {
+    activeRows.forEach((r) => {
       if (!isFocusRow(r)) return;
       const st = sessions[r.id];
       const alloc = st?.durationAllocated ?? r.dur;
@@ -695,7 +695,7 @@ function StudyTimetable({ user }: { user: User }) {
     updateToday({ sessions: nextSessions, pending: pending.filter((x) => x !== id), sessionTopics: newSessionTopics });
 
     // Sync to Google Sheets
-    const row = ROWS.find((r) => r.id === id);
+    const row = activeRows.find((r) => r.id === id);
     if (row) postToSheet({ row: row.act, cat: row.cat, topic: trimmedTopic }, "session_started");
   };
 
@@ -711,7 +711,7 @@ function StudyTimetable({ user }: { user: User }) {
   };
 
   const completeSession = (id: number) => {
-    const row = ROWS.find((r) => r.id === id);
+    const row = activeRows.find((r) => r.id === id);
     if (!row) return;
 
     const nextSessions = { ...sessions, [id]: { ...sessions[id], status: "completed", remaining: 0, endTs: null } as SessionRec };
@@ -764,7 +764,7 @@ function StudyTimetable({ user }: { user: User }) {
     const remaining = (reopened ? 0 : st.remaining) + minutes * 60;
     const status = reopened ? "running" : st.status;
     const endTs = status === "running" ? Date.now() + remaining * 1000 : null;
-    const oldAllocated = st.durationAllocated ?? (ROWS.find(r => r.id === id)?.dur || 0);
+    const oldAllocated = st.durationAllocated ?? (activeRows.find(r => r.id === id)?.dur || 0);
 
     nextSessions[id] = { ...st, status: status as SessionStatus, remaining, endTs, durationAllocated: oldAllocated + minutes, warned: false };
     let newShift = timeShift;
@@ -794,12 +794,12 @@ function StudyTimetable({ user }: { user: User }) {
     // Silently log this extension to Firebase for the email engine.
     const deductedFrom =
       targetDeductId !== 'none'
-        ? ROWS.find((r) => r.id === targetDeductId)?.act || String(targetDeductId)
+        ? activeRows.find((r) => r.id === targetDeductId)?.act || String(targetDeductId)
         : null;
     const extensionEntry = {
       date: todayKey(),
       rowId: id,
-      activity: ROWS.find((r) => r.id === id)?.act || String(id),
+      activity: activeRows.find((r) => r.id === id)?.act || String(id),
       minutes,
       deductedFromRowId: targetDeductId === 'none' ? null : targetDeductId,
       deductedFrom,
@@ -866,7 +866,7 @@ function StudyTimetable({ user }: { user: User }) {
     return row.time.split("–")[0].trim();
   };
 
-  const runningRow = ROWS.find((r) => isFocusRow(r) && sessions[r.id]?.status === "running") || null;
+  const runningRow = activeRows.find((r) => isFocusRow(r) && sessions[r.id]?.status === "running") || null;
   const todayIdx = (now.getDay() + 6) % 7;
 
   const heatmapCells = useMemo(() => {
@@ -893,7 +893,7 @@ function StudyTimetable({ user }: { user: User }) {
     const avgSession = completedLog.length ? Math.round(sum(completedLog) / completedLog.length) : 0;
     const longest = completedLog.length ? Math.max(...completedLog.map((l) => l.durMin)) : 0;
     const bySubject: Record<string, number> = {};
-    completedLog.forEach((l) => { const r = ROWS.find((x) => x.id === l.rowId); if (r) bySubject[r.act] = (bySubject[r.act] || 0) + l.durMin; });
+    completedLog.forEach((l) => { const r = activeRows.find((x) => x.id === l.rowId); if (r) bySubject[r.act] = (bySubject[r.act] || 0) + l.durMin; });
     const mostStudied = Object.keys(bySubject).sort((a, b) => bySubject[b] - bySubject[a])[0] || "—";
     const byDay: Record<string, number> = { ...heatmapLog };
     const bestDay = Object.keys(byDay).sort((a, b) => byDay[b] - byDay[a])[0] || "—";
@@ -1000,7 +1000,7 @@ function StudyTimetable({ user }: { user: User }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {ROWS.map((r) => {
+                  {activeRows.map((r) => {
                     if (!isFocusRow(r)) {
                       return (
                         <tr key={r.id} className="tt-rowLIFE">
@@ -1057,7 +1057,7 @@ function StudyTimetable({ user }: { user: User }) {
                     <span className="tt-pendingEmpty">Nothing pending. Great job, Officer.</span>
                   ) : (
                     pending.map((id) => {
-                      const r = ROWS.find((x) => x.id === id);
+                      const r = activeRows.find((x) => x.id === id);
                       if (!r) return null;
                       return (
                         <div key={id} className="tt-pendingItem">
@@ -1171,7 +1171,7 @@ function StudyTimetable({ user }: { user: User }) {
 
       {/* START TOPIC PROMPT — asks what you're focusing on before the timer begins */}
       {startPrompt && (() => {
-        const row = ROWS.find(r => r.id === startPrompt.id);
+        const row = activeRows.find(r => r.id === startPrompt.id);
         return (
           <div className="tt-glassOverlay" onClick={() => setStartPrompt(null)}>
             <div className="tt-glassBox" onClick={(e) => e.stopPropagation()}>
@@ -1211,8 +1211,8 @@ function StudyTimetable({ user }: { user: User }) {
 
       {/* EXTENSION MODAL — glass-morphism */}
       {extendModal && (() => {
-        const row = ROWS.find(r => r.id === extendModal.id);
-        const trades = ROWS.filter(r => isFocusRow(r) && r.id !== extendModal.id && sessions[r.id]?.status !== "completed" && sessions[r.id]?.remaining >= extendMins * 60);
+        const row = activeRows.find(r => r.id === extendModal.id);
+        const trades = activeRows.filter(r => isFocusRow(r) && r.id !== extendModal.id && sessions[r.id]?.status !== "completed" && sessions[r.id]?.remaining >= extendMins * 60);
         return (
           <div className="tt-glassOverlay" onClick={() => setExtendModal(null)}>
             <div className="tt-glassBox" onClick={(e) => e.stopPropagation()}>
@@ -1279,7 +1279,7 @@ function StudyTimetable({ user }: { user: User }) {
 
       {/* TIMER LOGIC */}
       {(() => {
-        const active = runningRow || ROWS.find((r) => isFocusRow(r) && sessions[r.id]?.status === "paused" && sessions[r.id]?.remaining < r.dur * 60);
+        const active = runningRow || activeRows.find((r) => isFocusRow(r) && sessions[r.id]?.status === "paused" && sessions[r.id]?.remaining < r.dur * 60);
         if (!active) return null;
 
         const st = sessions[active.id];
