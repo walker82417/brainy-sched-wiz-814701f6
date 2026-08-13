@@ -414,7 +414,7 @@ function StudyTimetable({ user }: { user: User }) {
 
   const isSunday = mounted && new Date().getDay() === 0;
   const activeRows = useMemo(
-    () => (isSunday && sundayPlan && sundayPlan.length ? buildSundayRows(sundayPlan) : ROWS),
+    () => (isSunday ? (sundayPlan && sundayPlan.length ? buildSundayRows(sundayPlan) : []) : ROWS),
     [isSunday, sundayPlan],
   );
 
