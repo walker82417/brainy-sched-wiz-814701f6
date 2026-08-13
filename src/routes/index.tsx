@@ -1289,6 +1289,71 @@ function StudyTimetable({ user }: { user: User }) {
         </div>
       </div>
 
+      {/* SUNDAY PLANNER — build the whole day yourself */}
+      {sundayModal && (
+        <div className="tt-glassOverlay" onClick={() => { setSundayModal(false); setSundayDismissed(true); }}>
+          <div className="tt-glassBox tt-sundayBox" onClick={(e) => e.stopPropagation()}>
+            <div className="tt-glassHead">
+              <div className="tt-glassIcon">🗓</div>
+              <div>
+                <div className="tt-glassEyebrow">Sunday Mission Plan</div>
+                <div className="tt-glassTitle">What are you studying today?</div>
+              </div>
+              <button className="tt-glassClose" onClick={() => { setSundayModal(false); setSundayDismissed(true); }} aria-label="Close">×</button>
+            </div>
+
+            <div className="tt-glassSection">
+              <div className="tt-glassLabel">Add a subject block</div>
+              <div className="tt-sundayForm">
+                <select className="tt-glassSelect" value={sdSubject} onChange={(e) => setSdSubject(e.target.value)}>
+                  {SUBJECT_PRESETS.map((p) => (
+                    <option key={p.act} value={p.act}>{p.icon} {p.act}</option>
+                  ))}
+                </select>
+                <input className="tt-glassSelect" type="text" value={sdCustom} onChange={(e) => setSdCustom(e.target.value)} placeholder="…or type a custom subject" maxLength={60} />
+                <div className="tt-sundayRowInputs">
+                  <label>Start<input className="tt-glassSelect" type="time" value={sdStart} onChange={(e) => setSdStart(e.target.value)} /></label>
+                  <label>Minutes<input className="tt-glassSelect" type="number" min={5} step={5} value={sdDur} onChange={(e) => setSdDur(Number(e.target.value))} /></label>
+                  <button className="tt-glassBtn primary" onClick={addSundayEntry}>+ Add</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="tt-glassSection">
+              <div className="tt-glassLabel">Today&apos;s blocks ({sundayDraft.length})</div>
+              {sundayDraft.length === 0 ? (
+                <div className="tt-glassHint">Nothing added yet — pick a subject, a start time and a duration.</div>
+              ) : (
+                <div className="tt-sundayList">
+                  {[...sundayDraft].sort((a, b) => a.startMin - b.startMin).map((e, i) => (
+                    <div className="tt-sundayItem" key={`${e.subject}-${e.startMin}-${i}`}>
+                      <span className="tt-sundayItemIcon">{e.icon}</span>
+                      <span className="tt-sundayItemName">{e.subject}</span>
+                      <span className="tt-sundayItemTime">{minsToClock(e.startMin)} – {minsToClock(e.startMin + e.dur)} · {e.dur}m</span>
+                      <button onClick={() => setSundayDraft((d) => d.filter((x) => x !== e))} aria-label="Remove">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sundayOverlaps(sundayDraft) && (
+                <div className="tt-sundayWarn">⚠ Some blocks overlap. You can still save, but the timings will clash.</div>
+              )}
+              <div className="tt-glassHint">
+                Total planned: {(sundayDraft.reduce((a, b) => a + b.dur, 0) / 60).toFixed(1)}h
+              </div>
+            </div>
+
+            <div className="tt-glassActions">
+              <button className="tt-glassBtn ghost" onClick={() => { setSundayModal(false); setSundayDismissed(true); }}>Later</button>
+              <button className="tt-glassBtn primary" disabled={sundayDraft.length === 0} onClick={saveSundayPlan}>
+                Lock in Sunday
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* START TOPIC PROMPT — asks what you're focusing on before the timer begins */}
       {startPrompt && (() => {
         const row = activeRows.find(r => r.id === startPrompt.id);
