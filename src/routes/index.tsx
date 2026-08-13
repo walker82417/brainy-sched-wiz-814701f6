@@ -469,6 +469,8 @@ function StudyTimetable({ user }: { user: User }) {
         if (data.extensionLog) setExtensionLog(data.extensionLog);
         if (data.timeShift !== undefined) setTimeShift(data.timeShift);
         if (data.sessionTopics) setSessionTopics(data.sessionTopics);
+        if (data.sundayPlan) setSundayPlan(data.sundayPlan);
+
       } else {
         // Initialize daily document if it doesn't exist
         setDoc(todayRef, { sessions: initSessions(), checklist: initChecklist(), pending: [], completedLog: [], timeShift: 0 }, { merge: true });
