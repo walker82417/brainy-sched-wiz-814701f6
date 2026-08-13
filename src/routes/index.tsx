@@ -1910,6 +1910,36 @@ function StudyTimetable({ user }: { user: User }) {
         .tt-glassSelect:focus { border-color: #151b4d; background: #fff; }
         .tt-glassHint { margin-top: 8px; font-size: 11px; color: #6b7280; font-style: italic; }
 
+        /* Sunday planner */
+        .tt-sundayBtn {
+          margin-left: 10px; padding: 6px 14px; border-radius: 20px; cursor: pointer;
+          border: 1px solid #f0b429; background: linear-gradient(135deg,#fff8df,#fde68a);
+          color: #92400e; font-weight: 800; font-size: 13px;
+          box-shadow: 0 3px 10px rgba(240,180,41,.28); transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .tt-sundayBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(240,180,41,.35); }
+        .tt-sundayBox { max-width: 560px; }
+        .tt-sundayForm { display: flex; flex-direction: column; gap: 8px; }
+        .tt-sundayRowInputs { display: flex; gap: 8px; align-items: flex-end; }
+        .tt-sundayRowInputs label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: #4b5563; flex: 1; }
+        .tt-sundayList { display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow-y: auto; }
+        .tt-sundayItem {
+          display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 10px;
+          background: rgba(255,255,255,.65); border: 1px solid rgba(148,163,184,.35); font-size: 12px;
+          animation: ttPopIn .28s cubic-bezier(.2,.9,.3,1.2) both;
+        }
+        .tt-sundayItemName { font-weight: 800; color: #1f2870; flex: 1; }
+        .tt-sundayItemTime { color: #6b7280; font-size: 11px; white-space: nowrap; }
+        .tt-sundayItem button {
+          border: none; background: rgba(239,68,68,.12); color: #b91c1c; border-radius: 8px;
+          width: 22px; height: 22px; cursor: pointer; font-size: 14px; line-height: 1;
+        }
+        .tt-sundayWarn {
+          margin-top: 8px; padding: 7px 10px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
+          background: rgba(251,191,36,.18); color: #92400e; border: 1px solid rgba(245,158,11,.4);
+        }
+
+
         .tt-glassTextarea {
           width: 100%; padding: 10px 12px; box-sizing: border-box;
           background: rgba(255,255,255,0.7); color: #1b1e2b;
