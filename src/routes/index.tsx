@@ -507,6 +507,8 @@ function StudyTimetable({ user }: { user: User }) {
           if (data.extensionLog) setExtensionLog(data.extensionLog);
           if (data.timeShift !== undefined) setTimeShift(data.timeShift);
           if (data.sessionTopics) setSessionTopics(data.sessionTopics);
+          if (data.sundayPlan) setSundayPlan(data.sundayPlan);
+
         }
       } catch (e) {
         console.error("Forced resync failed", e);
