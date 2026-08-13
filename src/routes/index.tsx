@@ -155,9 +155,9 @@ function countdownParts(dateStr: string) {
   return { d, h, m, s };
 }
 
-function initSessions(): Record<number, SessionRec> {
+function initSessions(rows: Row[] = ROWS): Record<number, SessionRec> {
   const out: Record<number, SessionRec> = {};
-  ROWS.forEach((r) => { out[r.id] = { status: "notstarted", remaining: r.dur * 60, endTs: null, warned: false, durationAllocated: r.dur }; });
+  rows.forEach((r) => { out[r.id] = { status: "notstarted", remaining: r.dur * 60, endTs: null, warned: false, durationAllocated: r.dur }; });
   return out;
 }
 
@@ -166,6 +166,48 @@ function initChecklist(): Record<string, boolean> {
   CHECKLIST_ITEMS.forEach((it) => (out[it] = false));
   return out;
 }
+
+/* =============================================================
+   SUNDAY CUSTOM DAY
+   ============================================================= */
+type SundayEntry = { subject: string; cat: Row["cat"]; icon: string; focus: string; startMin: number; dur: number };
+
+const SUNDAY_ID_BASE = 100;
+
+const SUBJECT_PRESETS = ROWS.filter(isFocusRow).map((r) => ({ act: r.act, cat: r.cat, icon: r.icon, focus: r.focus }));
+
+function buildSundayRows(entries: SundayEntry[]): Row[] {
+  return [...entries]
+    .sort((a, b) => a.startMin - b.startMin)
+    .map((e, i) => ({
+      id: SUNDAY_ID_BASE + i,
+      time: `${minsToClock(e.startMin)} – ${minsToClock(e.startMin + e.dur)}`,
+      startMin: e.startMin,
+      dur: e.dur,
+      act: e.subject,
+      focus: e.focus || "Sunday custom mission",
+      cat: e.cat,
+      icon: e.icon,
+    }));
+}
+
+function clockToMins(v: string) {
+  const [h, m] = v.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function minsToInput(mins: number) {
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
+function sundayOverlaps(entries: SundayEntry[]) {
+  const sorted = [...entries].sort((a, b) => a.startMin - b.startMin);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].startMin < sorted[i - 1].startMin + sorted[i - 1].dur) return true;
+  }
+  return false;
+}
+
 
 /* =============================================================
    AUTHENTICATION WRAPPER
@@ -360,6 +402,24 @@ function StudyTimetable({ user }: { user: User }) {
   const [sessionTopics, setSessionTopics] = useState<Record<number, string>>({});
   const [startTopic, setStartTopic] = useState<string>('');
 
+  // Sunday custom-day planner
+  const [sundayPlan, setSundayPlan] = useState<SundayEntry[] | null>(null);
+  const [sundayModal, setSundayModal] = useState(false);
+  const [sundayDismissed, setSundayDismissed] = useState(false);
+  const [sundayDraft, setSundayDraft] = useState<SundayEntry[]>([]);
+  const [sdSubject, setSdSubject] = useState<string>(SUBJECT_PRESETS[0]?.act || "");
+  const [sdCustom, setSdCustom] = useState<string>("");
+  const [sdStart, setSdStart] = useState<string>("07:00");
+  const [sdDur, setSdDur] = useState<number>(60);
+
+  const isSunday = mounted && new Date().getDay() === 0;
+  const activeRows = useMemo(
+    () => (isSunday ? (sundayPlan && sundayPlan.length ? buildSundayRows(sundayPlan) : []) : ROWS),
+    [isSunday, sundayPlan],
+  );
+
+
+
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -409,6 +469,8 @@ function StudyTimetable({ user }: { user: User }) {
         if (data.extensionLog) setExtensionLog(data.extensionLog);
         if (data.timeShift !== undefined) setTimeShift(data.timeShift);
         if (data.sessionTopics) setSessionTopics(data.sessionTopics);
+        if (data.sundayPlan) setSundayPlan(data.sundayPlan);
+
       } else {
         // Initialize daily document if it doesn't exist
         setDoc(todayRef, { sessions: initSessions(), checklist: initChecklist(), pending: [], completedLog: [], timeShift: 0 }, { merge: true });
@@ -445,6 +507,8 @@ function StudyTimetable({ user }: { user: User }) {
           if (data.extensionLog) setExtensionLog(data.extensionLog);
           if (data.timeShift !== undefined) setTimeShift(data.timeShift);
           if (data.sessionTopics) setSessionTopics(data.sessionTopics);
+          if (data.sundayPlan) setSundayPlan(data.sundayPlan);
+
         }
       } catch (e) {
         console.error("Forced resync failed", e);
@@ -503,7 +567,7 @@ function StudyTimetable({ user }: { user: User }) {
     let changed = false;
     const nextSessions = { ...sessions };
     const toComplete: number[] = [];
-    ROWS.forEach((r) => {
+    activeRows.forEach((r) => {
       if (!isFocusRow(r)) return;
       const st = nextSessions[r.id];
       if (st && st.status === "running" && st.endTs) {
@@ -522,7 +586,7 @@ function StudyTimetable({ user }: { user: User }) {
       const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
       const nextPending = [...pending];
       let pendingChanged = false;
-      ROWS.forEach((r) => {
+      activeRows.forEach((r) => {
         if (!isFocusRow(r)) return;
         const st = sessions[r.id];
         const endMin = r.startMin + r.dur + timeShift;
@@ -541,7 +605,47 @@ function StudyTimetable({ user }: { user: User }) {
     return () => window.clearInterval(id);
   }, [sessions, timeShift, mounted, pending]);
 
-  const totalFocus = useMemo(() => ROWS.filter(isFocusRow).length, []);
+  const totalFocus = useMemo(() => activeRows.filter(isFocusRow).length, [activeRows]);
+
+  // Ask for the Sunday plan once the day's data is loaded and nothing is planned yet.
+  useEffect(() => {
+    if (!mounted || !isSunday || sundayDismissed) return;
+    if (!sundayPlan || sundayPlan.length === 0) setSundayModal(true);
+  }, [mounted, isSunday, sundayPlan, sundayDismissed]);
+
+  const openSundayPlanner = () => {
+    setSundayDraft(sundayPlan ? [...sundayPlan] : []);
+    setSundayModal(true);
+  };
+
+  const addSundayEntry = () => {
+    const custom = sdCustom.trim();
+    const preset = SUBJECT_PRESETS.find((p) => p.act === sdSubject);
+    const entry: SundayEntry = {
+      subject: custom || preset?.act || "STUDY SESSION",
+      cat: custom ? "technical" : preset?.cat || "technical",
+      icon: custom ? "📚" : preset?.icon || "📚",
+      focus: custom ? "Sunday custom mission" : preset?.focus || "Sunday custom mission",
+      startMin: clockToMins(sdStart),
+      dur: Math.max(5, Number(sdDur) || 0),
+    };
+    setSundayDraft((d) => [...d, entry].sort((a, b) => a.startMin - b.startMin));
+    setSdCustom("");
+    setSdStart(minsToInput(Math.min(1439, entry.startMin + entry.dur)));
+  };
+
+  const saveSundayPlan = () => {
+    const plan = [...sundayDraft].sort((a, b) => a.startMin - b.startMin);
+    const rows = buildSundayRows(plan);
+    const nextSessions = initSessions(rows);
+    // keep any progress already made on a row that still exists in the new plan
+    rows.forEach((r) => { if (sessions[r.id]) nextSessions[r.id] = sessions[r.id]; });
+    setSundayPlan(plan);
+    setSessions(nextSessions);
+    setSundayModal(false);
+    updateToday({ sundayPlan: plan, sessions: nextSessions });
+  };
+
   const doneToday = useMemo(() => completedLog.filter((l) => l.date === todayKey()), [completedLog]);
   const streak = useMemo(() => {
     let s = 0; const d = new Date();
@@ -557,7 +661,7 @@ function StudyTimetable({ user }: { user: User }) {
   const liveProgress = useMemo(() => {
     let allocated = 0;
     let studied = 0;
-    ROWS.forEach((r) => {
+    activeRows.forEach((r) => {
       if (!isFocusRow(r)) return;
       const st = sessions[r.id];
       const alloc = st?.durationAllocated ?? r.dur;
@@ -695,7 +799,7 @@ function StudyTimetable({ user }: { user: User }) {
     updateToday({ sessions: nextSessions, pending: pending.filter((x) => x !== id), sessionTopics: newSessionTopics });
 
     // Sync to Google Sheets
-    const row = ROWS.find((r) => r.id === id);
+    const row = activeRows.find((r) => r.id === id);
     if (row) postToSheet({ row: row.act, cat: row.cat, topic: trimmedTopic }, "session_started");
   };
 
@@ -711,7 +815,7 @@ function StudyTimetable({ user }: { user: User }) {
   };
 
   const completeSession = (id: number) => {
-    const row = ROWS.find((r) => r.id === id);
+    const row = activeRows.find((r) => r.id === id);
     if (!row) return;
 
     const nextSessions = { ...sessions, [id]: { ...sessions[id], status: "completed", remaining: 0, endTs: null } as SessionRec };
@@ -764,7 +868,7 @@ function StudyTimetable({ user }: { user: User }) {
     const remaining = (reopened ? 0 : st.remaining) + minutes * 60;
     const status = reopened ? "running" : st.status;
     const endTs = status === "running" ? Date.now() + remaining * 1000 : null;
-    const oldAllocated = st.durationAllocated ?? (ROWS.find(r => r.id === id)?.dur || 0);
+    const oldAllocated = st.durationAllocated ?? (activeRows.find(r => r.id === id)?.dur || 0);
 
     nextSessions[id] = { ...st, status: status as SessionStatus, remaining, endTs, durationAllocated: oldAllocated + minutes, warned: false };
     let newShift = timeShift;
@@ -794,12 +898,12 @@ function StudyTimetable({ user }: { user: User }) {
     // Silently log this extension to Firebase for the email engine.
     const deductedFrom =
       targetDeductId !== 'none'
-        ? ROWS.find((r) => r.id === targetDeductId)?.act || String(targetDeductId)
+        ? activeRows.find((r) => r.id === targetDeductId)?.act || String(targetDeductId)
         : null;
     const extensionEntry = {
       date: todayKey(),
       rowId: id,
-      activity: ROWS.find((r) => r.id === id)?.act || String(id),
+      activity: activeRows.find((r) => r.id === id)?.act || String(id),
       minutes,
       deductedFromRowId: targetDeductId === 'none' ? null : targetDeductId,
       deductedFrom,
@@ -866,7 +970,7 @@ function StudyTimetable({ user }: { user: User }) {
     return row.time.split("–")[0].trim();
   };
 
-  const runningRow = ROWS.find((r) => isFocusRow(r) && sessions[r.id]?.status === "running") || null;
+  const runningRow = activeRows.find((r) => isFocusRow(r) && sessions[r.id]?.status === "running") || null;
   const todayIdx = (now.getDay() + 6) % 7;
 
   const heatmapCells = useMemo(() => {
@@ -893,7 +997,7 @@ function StudyTimetable({ user }: { user: User }) {
     const avgSession = completedLog.length ? Math.round(sum(completedLog) / completedLog.length) : 0;
     const longest = completedLog.length ? Math.max(...completedLog.map((l) => l.durMin)) : 0;
     const bySubject: Record<string, number> = {};
-    completedLog.forEach((l) => { const r = ROWS.find((x) => x.id === l.rowId); if (r) bySubject[r.act] = (bySubject[r.act] || 0) + l.durMin; });
+    completedLog.forEach((l) => { const r = activeRows.find((x) => x.id === l.rowId); if (r) bySubject[r.act] = (bySubject[r.act] || 0) + l.durMin; });
     const mostStudied = Object.keys(bySubject).sort((a, b) => bySubject[b] - bySubject[a])[0] || "—";
     const byDay: Record<string, number> = { ...heatmapLog };
     const bestDay = Object.keys(byDay).sort((a, b) => byDay[b] - byDay[a])[0] || "—";
@@ -988,6 +1092,12 @@ function StudyTimetable({ user }: { user: User }) {
               <span className="tt-syncDot" aria-hidden="true" style={{ background: '#22c55e', width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
               <span>Firebase Database Synced ⚡ ({user.email})</span>
             </div>
+            {isSunday && (
+              <button className="tt-sundayBtn" onClick={openSundayPlanner}>
+                🗓 {sundayPlan && sundayPlan.length ? "Re-plan Sunday" : "Plan your Sunday"}
+              </button>
+            )}
+
           </div>
 
           {/* MAIN GRID */}
@@ -1000,7 +1110,17 @@ function StudyTimetable({ user }: { user: User }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {ROWS.map((r) => {
+                  {isSunday && (!sundayPlan || sundayPlan.length === 0) && (
+                    <tr className="tt-rowLIFE">
+                      <td className="tt-rowIcon">🗓</td>
+                      <td colSpan={6} style={{ textAlign: "center", padding: "18px" }}>
+                        <b>Sunday is yours to design.</b>{" "}
+                        <button className="tt-sundayBtn" onClick={openSundayPlanner}>Plan your Sunday</button>
+                      </td>
+                    </tr>
+                  )}
+                  {activeRows.map((r) => {
+
                     if (!isFocusRow(r)) {
                       return (
                         <tr key={r.id} className="tt-rowLIFE">
@@ -1057,7 +1177,7 @@ function StudyTimetable({ user }: { user: User }) {
                     <span className="tt-pendingEmpty">Nothing pending. Great job, Officer.</span>
                   ) : (
                     pending.map((id) => {
-                      const r = ROWS.find((x) => x.id === id);
+                      const r = activeRows.find((x) => x.id === id);
                       if (!r) return null;
                       return (
                         <div key={id} className="tt-pendingItem">
@@ -1169,9 +1289,74 @@ function StudyTimetable({ user }: { user: User }) {
         </div>
       </div>
 
+      {/* SUNDAY PLANNER — build the whole day yourself */}
+      {sundayModal && (
+        <div className="tt-glassOverlay" onClick={() => { setSundayModal(false); setSundayDismissed(true); }}>
+          <div className="tt-glassBox tt-sundayBox" onClick={(e) => e.stopPropagation()}>
+            <div className="tt-glassHead">
+              <div className="tt-glassIcon">🗓</div>
+              <div>
+                <div className="tt-glassEyebrow">Sunday Mission Plan</div>
+                <div className="tt-glassTitle">What are you studying today?</div>
+              </div>
+              <button className="tt-glassClose" onClick={() => { setSundayModal(false); setSundayDismissed(true); }} aria-label="Close">×</button>
+            </div>
+
+            <div className="tt-glassSection">
+              <div className="tt-glassLabel">Add a subject block</div>
+              <div className="tt-sundayForm">
+                <select className="tt-glassSelect" value={sdSubject} onChange={(e) => setSdSubject(e.target.value)}>
+                  {SUBJECT_PRESETS.map((p) => (
+                    <option key={p.act} value={p.act}>{p.icon} {p.act}</option>
+                  ))}
+                </select>
+                <input className="tt-glassSelect" type="text" value={sdCustom} onChange={(e) => setSdCustom(e.target.value)} placeholder="…or type a custom subject" maxLength={60} />
+                <div className="tt-sundayRowInputs">
+                  <label>Start<input className="tt-glassSelect" type="time" value={sdStart} onChange={(e) => setSdStart(e.target.value)} /></label>
+                  <label>Minutes<input className="tt-glassSelect" type="number" min={5} step={5} value={sdDur} onChange={(e) => setSdDur(Number(e.target.value))} /></label>
+                  <button className="tt-glassBtn primary" onClick={addSundayEntry}>+ Add</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="tt-glassSection">
+              <div className="tt-glassLabel">Today&apos;s blocks ({sundayDraft.length})</div>
+              {sundayDraft.length === 0 ? (
+                <div className="tt-glassHint">Nothing added yet — pick a subject, a start time and a duration.</div>
+              ) : (
+                <div className="tt-sundayList">
+                  {[...sundayDraft].sort((a, b) => a.startMin - b.startMin).map((e, i) => (
+                    <div className="tt-sundayItem" key={`${e.subject}-${e.startMin}-${i}`}>
+                      <span className="tt-sundayItemIcon">{e.icon}</span>
+                      <span className="tt-sundayItemName">{e.subject}</span>
+                      <span className="tt-sundayItemTime">{minsToClock(e.startMin)} – {minsToClock(e.startMin + e.dur)} · {e.dur}m</span>
+                      <button onClick={() => setSundayDraft((d) => d.filter((x) => x !== e))} aria-label="Remove">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sundayOverlaps(sundayDraft) && (
+                <div className="tt-sundayWarn">⚠ Some blocks overlap. You can still save, but the timings will clash.</div>
+              )}
+              <div className="tt-glassHint">
+                Total planned: {(sundayDraft.reduce((a, b) => a + b.dur, 0) / 60).toFixed(1)}h
+              </div>
+            </div>
+
+            <div className="tt-glassActions">
+              <button className="tt-glassBtn ghost" onClick={() => { setSundayModal(false); setSundayDismissed(true); }}>Later</button>
+              <button className="tt-glassBtn primary" disabled={sundayDraft.length === 0} onClick={saveSundayPlan}>
+                Lock in Sunday
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* START TOPIC PROMPT — asks what you're focusing on before the timer begins */}
       {startPrompt && (() => {
-        const row = ROWS.find(r => r.id === startPrompt.id);
+        const row = activeRows.find(r => r.id === startPrompt.id);
         return (
           <div className="tt-glassOverlay" onClick={() => setStartPrompt(null)}>
             <div className="tt-glassBox" onClick={(e) => e.stopPropagation()}>
@@ -1211,8 +1396,8 @@ function StudyTimetable({ user }: { user: User }) {
 
       {/* EXTENSION MODAL — glass-morphism */}
       {extendModal && (() => {
-        const row = ROWS.find(r => r.id === extendModal.id);
-        const trades = ROWS.filter(r => isFocusRow(r) && r.id !== extendModal.id && sessions[r.id]?.status !== "completed" && sessions[r.id]?.remaining >= extendMins * 60);
+        const row = activeRows.find(r => r.id === extendModal.id);
+        const trades = activeRows.filter(r => isFocusRow(r) && r.id !== extendModal.id && sessions[r.id]?.status !== "completed" && sessions[r.id]?.remaining >= extendMins * 60);
         return (
           <div className="tt-glassOverlay" onClick={() => setExtendModal(null)}>
             <div className="tt-glassBox" onClick={(e) => e.stopPropagation()}>
@@ -1279,7 +1464,7 @@ function StudyTimetable({ user }: { user: User }) {
 
       {/* TIMER LOGIC */}
       {(() => {
-        const active = runningRow || ROWS.find((r) => isFocusRow(r) && sessions[r.id]?.status === "paused" && sessions[r.id]?.remaining < r.dur * 60);
+        const active = runningRow || activeRows.find((r) => isFocusRow(r) && sessions[r.id]?.status === "paused" && sessions[r.id]?.remaining < r.dur * 60);
         if (!active) return null;
 
         const st = sessions[active.id];
@@ -1724,6 +1909,36 @@ function StudyTimetable({ user }: { user: User }) {
         }
         .tt-glassSelect:focus { border-color: #151b4d; background: #fff; }
         .tt-glassHint { margin-top: 8px; font-size: 11px; color: #6b7280; font-style: italic; }
+
+        /* Sunday planner */
+        .tt-sundayBtn {
+          margin-left: 10px; padding: 6px 14px; border-radius: 20px; cursor: pointer;
+          border: 1px solid #f0b429; background: linear-gradient(135deg,#fff8df,#fde68a);
+          color: #92400e; font-weight: 800; font-size: 13px;
+          box-shadow: 0 3px 10px rgba(240,180,41,.28); transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .tt-sundayBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(240,180,41,.35); }
+        .tt-sundayBox { max-width: 560px; }
+        .tt-sundayForm { display: flex; flex-direction: column; gap: 8px; }
+        .tt-sundayRowInputs { display: flex; gap: 8px; align-items: flex-end; }
+        .tt-sundayRowInputs label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: #4b5563; flex: 1; }
+        .tt-sundayList { display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow-y: auto; }
+        .tt-sundayItem {
+          display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 10px;
+          background: rgba(255,255,255,.65); border: 1px solid rgba(148,163,184,.35); font-size: 12px;
+          animation: ttPopIn .28s cubic-bezier(.2,.9,.3,1.2) both;
+        }
+        .tt-sundayItemName { font-weight: 800; color: #1f2870; flex: 1; }
+        .tt-sundayItemTime { color: #6b7280; font-size: 11px; white-space: nowrap; }
+        .tt-sundayItem button {
+          border: none; background: rgba(239,68,68,.12); color: #b91c1c; border-radius: 8px;
+          width: 22px; height: 22px; cursor: pointer; font-size: 14px; line-height: 1;
+        }
+        .tt-sundayWarn {
+          margin-top: 8px; padding: 7px 10px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
+          background: rgba(251,191,36,.18); color: #92400e; border: 1px solid rgba(245,158,11,.4);
+        }
+
 
         .tt-glassTextarea {
           width: 100%; padding: 10px 12px; box-sizing: border-box;
