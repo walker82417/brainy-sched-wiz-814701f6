@@ -117,13 +117,17 @@ type CompletedLog = { date: string; rowId: number; cat: Row["cat"]; durMin: numb
 /* =============================================================
    HELPERS
    ============================================================= */
-const todayKey = () => {
-  const date = new Date();
+/* Single source of truth for day keys — always LOCAL date.
+   (toISOString() is UTC and shifts the day by hours in IST.) */
+const localDateKey = (date: Date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
+const todayKey = () => localDateKey();
+
 
 function fmtTime(sec: number) {
   sec = Math.max(0, sec);
@@ -216,6 +220,7 @@ function AppWrapper() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [booting, setBooting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
 
@@ -229,12 +234,30 @@ function AppWrapper() {
     });
   }, []);
 
-  // Study-oriented boot sequence for ~5s right after sign-in
+  // Study-oriented boot sequence: driven by real data readiness, with a
+  // ~1.8s floor (so it never flickers) and a 5s ceiling (so it never blocks).
   useEffect(() => {
     if (!booting) return;
-    const t = setTimeout(() => setBooting(false), 5000);
-    return () => clearTimeout(t);
+    let ready = false;
+    let floorDone = false;
+    const finish = () => { if (ready && floorDone) setLeaving(true); };
+    const onReady = () => { ready = true; finish(); };
+    window.addEventListener("tt-data-ready", onReady);
+    const floor = setTimeout(() => { floorDone = true; finish(); }, 1800);
+    const ceiling = setTimeout(() => setLeaving(true), 5000);
+    return () => {
+      window.removeEventListener("tt-data-ready", onReady);
+      clearTimeout(floor);
+      clearTimeout(ceiling);
+    };
   }, [booting]);
+
+  // Smooth handoff: fade the loader out before unmounting it.
+  useEffect(() => {
+    if (!leaving) return;
+    const t = setTimeout(() => { setBooting(false); setLeaving(false); }, 620);
+    return () => clearTimeout(t);
+  }, [leaving]);
 
   if (loading) {
     return (
@@ -242,10 +265,6 @@ function AppWrapper() {
         <h2>Connecting to Command Center...</h2>
       </div>
     );
-  }
-
-  if (user && booting) {
-    return <StudyLoader name={user.displayName || user.email} />;
   }
 
 
@@ -370,7 +389,12 @@ function AppWrapper() {
     );
   }
 
-  return <StudyTimetable user={user} />;
+  return (
+    <>
+      <StudyTimetable user={user} />
+      {booting && <StudyLoader name={user.displayName || user.email} leaving={leaving} />}
+    </>
+  );
 }
 
 /* =============================================================
@@ -379,6 +403,9 @@ function AppWrapper() {
 function StudyTimetable({ user }: { user: User }) {
   const [mounted, setMounted] = useState(false);
   const [nowTick, setNowTick] = useState(0);
+  // Local calendar day the board is bound to. Updated only on a REAL date change.
+  const [dayKey, setDayKey] = useState(() => todayKey());
+
 
   // State
   const [examDates, setExamDates] = useState(EXAMS_DEFAULT);
@@ -392,6 +419,7 @@ function StudyTimetable({ user }: { user: User }) {
 
   // UI State
   const [editingExam, setEditingExam] = useState<ExamKey | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [extendModal, setExtendModal] = useState<{ id: number } | null>(null);
   const [extendMins, setExtendMins] = useState<number>(15);
   const [deductId, setDeductId] = useState<number | 'none'>('none');
@@ -423,9 +451,9 @@ function StudyTimetable({ user }: { user: User }) {
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Firestore References
+  // Firestore References — dayKey is state so a real date change re-points the doc
   const userRef = doc(db, "users", user.uid);
-  const todayRef = doc(db, "users", user.uid, "daily", todayKey());
+  const todayRef = doc(db, "users", user.uid, "daily", dayKey);
 
   /* -- GOOGLE SHEETS SYNC -- */
   const postToSheet = useCallback(async (payload: any, type: string) => {
@@ -447,6 +475,18 @@ function StudyTimetable({ user }: { user: User }) {
     }
   }, [user.email]);
 
+  /* -- DATE ROLLOVER WATCHER --
+     The board used to bind to the day it was opened on. Now we poll the local
+     date every 30s and only re-point Firestore when the calendar day actually
+     changes, so an open tab never silently drifts onto the wrong document. */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const k = todayKey();
+      setDayKey((cur) => (cur === k ? cur : k));
+    }, 30000);
+    return () => window.clearInterval(id);
+  }, []);
+
   /* -- FIREBASE REAL-TIME SYNC -- */
   useEffect(() => {
     // 1. Listen to Global User Data (Exams, Heatmap)
@@ -459,10 +499,25 @@ function StudyTimetable({ user }: { user: User }) {
     });
 
     // 2. Listen to Today's Data (Sessions, Checklist, Timers)
-    const unsubToday = onSnapshot(todayRef, (snap) => {
+    const unsubToday = onSnapshot(todayRef, { includeMetadataChanges: true }, (snap) => {
+      const fromCache = snap.metadata.fromCache;
       if (snap.exists()) {
         const data = snap.data();
-        if (data.sessions) setSessions(data.sessions);
+        if (data.sessions) {
+          // Never let an incoming payload silently drop a session we already
+          // finished locally but that hasn't round-tripped to the server yet.
+          setSessions((prev) => {
+            const next: Record<number, SessionRec> = { ...data.sessions };
+            Object.entries(prev).forEach(([k, local]) => {
+              const id = Number(k);
+              const incoming = next[id];
+              if (local?.status === "completed" && (!incoming || incoming.status === "notstarted") && snap.metadata.hasPendingWrites) {
+                next[id] = local;
+              }
+            });
+            return next;
+          });
+        }
         if (data.checklist) setChecklist(data.checklist);
         if (data.pending) setPending(data.pending);
         if (data.completedLog) setCompletedLog(data.completedLog);
@@ -470,16 +525,19 @@ function StudyTimetable({ user }: { user: User }) {
         if (data.timeShift !== undefined) setTimeShift(data.timeShift);
         if (data.sessionTopics) setSessionTopics(data.sessionTopics);
         if (data.sundayPlan) setSundayPlan(data.sundayPlan);
-
-      } else {
-        // Initialize daily document if it doesn't exist
+      } else if (!fromCache) {
+        // Only create a fresh day when the SERVER confirms there is none.
+        // A cache-only "missing" snapshot (offline blip, reconnect, sleep/wake)
+        // used to blank the day and flip finished tasks back to pending.
         setDoc(todayRef, { sessions: initSessions(), checklist: initChecklist(), pending: [], completedLog: [], timeShift: 0 }, { merge: true });
       }
       setMounted(true);
+      window.dispatchEvent(new Event("tt-data-ready"));
     });
 
     return () => { unsubUser(); unsubToday(); };
-  }, [user.uid]);
+  }, [user.uid, dayKey]);
+
 
   /* -- DEFENSIVE RESYNC (fixes stale data in WebView2 / live-wallpaper embeds) --
      Some embedded WebView2 contexts silently drop Firestore's realtime
@@ -527,7 +585,7 @@ function StudyTimetable({ user }: { user: User }) {
       window.removeEventListener("online", forceResync);
       window.clearInterval(pollId);
     };
-  }, [user.uid]);
+  }, [user.uid, dayKey]);
 
   // Push updates to Firebase
   const updateToday = (updates: Partial<any>) => setDoc(todayRef, updates, { merge: true });
@@ -650,7 +708,7 @@ function StudyTimetable({ user }: { user: User }) {
   const streak = useMemo(() => {
     let s = 0; const d = new Date();
     while (true) {
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       if (heatmapLog[key] && heatmapLog[key] > 0) { s++; d.setDate(d.getDate() - 1); } else break;
     }
     return s;
@@ -973,23 +1031,56 @@ function StudyTimetable({ user }: { user: User }) {
   const runningRow = activeRows.find((r) => isFocusRow(r) && sessions[r.id]?.status === "running") || null;
   const todayIdx = (now.getDay() + 6) % 7;
 
-  const heatmapCells = useMemo(() => {
-    const cells: { key: string; count: number }[] = [];
-    const today = new Date();
-    for (let i = 83; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      cells.push({ key, count: heatmapLog[key] || 0 });
+  /* ---- MONTHLY HEATMAP + MONTH-OVER-MONTH COMPARISON ---- */
+  const monthStatsFor = useCallback((y: number, m: number) => {
+    const days = new Date(y, m + 1, 0).getDate();
+    let sessions = 0, activeDays = 0, best = { key: "—", count: 0 };
+    for (let d = 1; d <= days; d++) {
+      const key = localDateKey(new Date(y, m, d));
+      const c = heatmapLog[key] || 0;
+      if (c > 0) { sessions += c; activeDays++; }
+      if (c > best.count) best = { key, count: c };
     }
-    return cells;
-  }, [heatmapLog]);
+    const minutes = completedLog
+      .filter((l) => { const dt = new Date(l.date + "T00:00:00"); return dt.getFullYear() === y && dt.getMonth() === m; })
+      .reduce((a, l) => a + l.durMin, 0);
+    return { sessions, activeDays, minutes, best, days };
+  }, [heatmapLog, completedLog]);
+
+  const monthView = useMemo(() => {
+    const base = new Date();
+    const d = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1);
+    const y = d.getFullYear(), m = d.getMonth();
+    const total = new Date(y, m + 1, 0).getDate();
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday-first
+    const cells: ({ key: string; count: number; day: number } | null)[] = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    for (let day = 1; day <= total; day++) {
+      const key = localDateKey(new Date(y, m, day));
+      cells.push({ key, count: heatmapLog[key] || 0, day });
+    }
+    const cur = monthStatsFor(y, m);
+    const pd = new Date(y, m - 1, 1);
+    const prev = monthStatsFor(pd.getFullYear(), pd.getMonth());
+    const spark = Array.from({ length: 6 }, (_, i) => {
+      const sd = new Date(y, m - (5 - i), 1);
+      const st = monthStatsFor(sd.getFullYear(), sd.getMonth());
+      return { label: sd.toLocaleString(undefined, { month: "short" })[0], hours: st.minutes / 60, sessions: st.sessions };
+    });
+    const sparkMax = Math.max(1, ...spark.map((s) => s.hours));
+    return {
+      label: d.toLocaleString(undefined, { month: "long", year: "numeric" }),
+      cells, cur, prev, spark, sparkMax,
+      isCurrentMonth: monthOffset === 0,
+    };
+  }, [monthOffset, heatmapLog, monthStatsFor]);
+
 
   const analytics = useMemo(() => {
     const nowD = new Date();
     const weekAgo = new Date(nowD); weekAgo.setDate(nowD.getDate() - 6);
     const monthAgo = new Date(nowD); monthAgo.setDate(nowD.getDate() - 29);
-    const inRange = (dstr: string, from: Date) => new Date(dstr) >= new Date(from.toISOString().slice(0, 10));
+    const inRange = (dstr: string, from: Date) => dstr >= localDateKey(from);
     const todayLogs = completedLog.filter((l) => l.date === todayKey());
     const weekLogs = completedLog.filter((l) => inRange(l.date, weekAgo));
     const monthLogs = completedLog.filter((l) => inRange(l.date, monthAgo));
@@ -1255,23 +1346,80 @@ function StudyTimetable({ user }: { user: User }) {
 
                 <div className="tt-col tt-motivPanel">
                   <div className="tt-card" style={{ flex: "0 0 auto" }}>
-                    <h3>CONSISTENCY HEATMAP (12 weeks)</h3>
-                    <div className="tt-heatmapWrap">
-                      <div className="tt-heatmapGrid">
-                        {heatmapCells.map(({ key, count }) => {
-                          let cls = "tt-hcell";
-                          if (count >= 1 && count < 3) cls += " l1";
-                          else if (count >= 3 && count < 6) cls += " l2";
-                          else if (count >= 6 && count < 9) cls += " l3";
-                          else if (count >= 9) cls += " l4";
-                          return <div key={key} className={cls} title={`${key}: ${count} sessions`} />;
-                        })}
+                    <div className="tt-monthHead">
+                      <h3>CONSISTENCY — {monthView.label}</h3>
+                      <div className="tt-monthNav">
+                        <button onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">‹</button>
+                        <button onClick={() => setMonthOffset(0)} disabled={monthView.isCurrentMonth} aria-label="This month">•</button>
+                        <button onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthView.isCurrentMonth} aria-label="Next month">›</button>
                       </div>
-                      <div className="tt-heatmapLegend">
-                        Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More
+                    </div>
+                    <div className="tt-heatmapWrap">
+                      <div className="tt-monthBody">
+                        <div className="tt-monthGridWrap">
+                          <div className="tt-monthDow">
+                            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i}>{d}</span>)}
+                          </div>
+                          <div className="tt-monthGrid">
+                            {monthView.cells.map((c, i) => {
+                              if (!c) return <div key={`e${i}`} className="tt-hcell empty" />;
+                              let cls = "tt-hcell";
+                              if (c.count >= 1 && c.count < 3) cls += " l1";
+                              else if (c.count >= 3 && c.count < 6) cls += " l2";
+                              else if (c.count >= 6 && c.count < 9) cls += " l3";
+                              else if (c.count >= 9) cls += " l4";
+                              if (c.key === todayKey()) cls += " today";
+                              return <div key={c.key} className={cls} title={`${c.key}: ${c.count} sessions`}><i>{c.day}</i></div>;
+                            })}
+                          </div>
+                          <div className="tt-heatmapLegend">
+                            Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More
+                          </div>
+                        </div>
+
+                        <div className="tt-monthCompare">
+                          <div className="tt-mcTitle">vs last month</div>
+                          {([
+                            ["Sessions", monthView.cur.sessions, monthView.prev.sessions, (v: number) => String(v)],
+                            ["Hours", monthView.cur.minutes / 60, monthView.prev.minutes / 60, (v: number) => v.toFixed(1) + "h"],
+                            ["Active days", monthView.cur.activeDays, monthView.prev.activeDays, (v: number) => String(v)],
+                          ] as [string, number, number, (v: number) => string][]).map(([label, cur, prev, fmt]) => {
+                            const delta = cur - prev;
+                            const dir = delta > 0.05 ? "up" : delta < -0.05 ? "down" : "flat";
+                            return (
+                              <div className="tt-mcRow" key={label}>
+                                <span className="tt-mcLabel">{label}</span>
+                                <span className="tt-mcVal">{fmt(cur)}</span>
+                                <span className={`tt-mcDelta ${dir}`}>
+                                  {dir === "up" ? "▲" : dir === "down" ? "▼" : "—"} {fmt(Math.abs(delta))}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          <div className="tt-mcRow">
+                            <span className="tt-mcLabel">Best day</span>
+                            <span className="tt-mcVal">{monthView.cur.best.count ? monthView.cur.best.key.slice(8) : "—"}</span>
+                            <span className="tt-mcDelta flat">{monthView.cur.best.count || 0}×</span>
+                          </div>
+                          <div className="tt-mcRow">
+                            <span className="tt-mcLabel">Streak</span>
+                            <span className="tt-mcVal">{streak}d</span>
+                            <span className="tt-mcDelta flat">now</span>
+                          </div>
+
+                          <div className="tt-spark">
+                            {monthView.spark.map((s, i) => (
+                              <div className="tt-sparkCol" key={i} title={`${s.sessions} sessions · ${s.hours.toFixed(1)}h`}>
+                                <div className="tt-sparkBar" style={{ height: `${Math.max(6, (s.hours / monthView.sparkMax) * 100)}%` }} />
+                                <span>{s.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+
                   <div className="tt-card" style={{ flex: "0 0 auto" }}>
                     <h3>TODAY&apos;S CHECKLIST</h3>
                     <div className="tt-checklist">

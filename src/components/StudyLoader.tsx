@@ -7,9 +7,9 @@ const LINES = [
   "Mission Control ready.",
 ];
 
-export default function StudyLoader({ name }: { name?: string | null }) {
+export default function StudyLoader({ name, leaving = false }: { name?: string | null; leaving?: boolean }) {
   return (
-    <div className="sl-root">
+    <div className={`sl-root${leaving ? " leaving" : ""}`}>
       <div className="sl-glow g1" />
       <div className="sl-glow g2" />
       <div className="sl-grid" />
@@ -56,8 +56,17 @@ export default function StudyLoader({ name }: { name?: string | null }) {
           font-family: 'Poppins','Segoe UI',Roboto,sans-serif;
           background: radial-gradient(ellipse at top, #1f2870 0%, #10133f 60%, #0a0c2b 100%);
           animation: slFade .45s ease-out both;
+          will-change: opacity, transform;
         }
         @keyframes slFade { from { opacity: 0 } to { opacity: 1 } }
+        .sl-root.leaving { animation: slOut .6s cubic-bezier(.4,0,.2,1) forwards; }
+        @keyframes slOut {
+          0%   { opacity: 1; transform: scale(1); filter: blur(0) }
+          100% { opacity: 0; transform: scale(1.06); filter: blur(8px) }
+        }
+        .sl-root.leaving .sl-stage { animation: slStageOut .5s cubic-bezier(.4,0,.2,1) forwards; }
+        @keyframes slStageOut { to { opacity: 0; transform: translateY(-14px) scale(.94) } }
+        .sl-root.leaving .sl-bar span { animation: none; width: 100% !important; transition: width .3s ease-out; }
 
         .sl-grid {
           position: absolute; inset: 0;
