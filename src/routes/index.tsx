@@ -454,6 +454,18 @@ function StudyTimetable({ user }: { user: User }) {
     }
   }, [user.email]);
 
+  /* -- DATE ROLLOVER WATCHER --
+     The board used to bind to the day it was opened on. Now we poll the local
+     date every 30s and only re-point Firestore when the calendar day actually
+     changes, so an open tab never silently drifts onto the wrong document. */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const k = todayKey();
+      setDayKey((cur) => (cur === k ? cur : k));
+    }, 30000);
+    return () => window.clearInterval(id);
+  }, []);
+
   /* -- FIREBASE REAL-TIME SYNC -- */
   useEffect(() => {
     // 1. Listen to Global User Data (Exams, Heatmap)
@@ -466,10 +478,25 @@ function StudyTimetable({ user }: { user: User }) {
     });
 
     // 2. Listen to Today's Data (Sessions, Checklist, Timers)
-    const unsubToday = onSnapshot(todayRef, (snap) => {
+    const unsubToday = onSnapshot(todayRef, { includeMetadataChanges: true }, (snap) => {
+      const fromCache = snap.metadata.fromCache;
       if (snap.exists()) {
         const data = snap.data();
-        if (data.sessions) setSessions(data.sessions);
+        if (data.sessions) {
+          // Never let an incoming payload silently drop a session we already
+          // finished locally but that hasn't round-tripped to the server yet.
+          setSessions((prev) => {
+            const next: Record<number, SessionRec> = { ...data.sessions };
+            Object.entries(prev).forEach(([k, local]) => {
+              const id = Number(k);
+              const incoming = next[id];
+              if (local?.status === "completed" && (!incoming || incoming.status === "notstarted") && snap.metadata.hasPendingWrites) {
+                next[id] = local;
+              }
+            });
+            return next;
+          });
+        }
         if (data.checklist) setChecklist(data.checklist);
         if (data.pending) setPending(data.pending);
         if (data.completedLog) setCompletedLog(data.completedLog);
@@ -477,16 +504,18 @@ function StudyTimetable({ user }: { user: User }) {
         if (data.timeShift !== undefined) setTimeShift(data.timeShift);
         if (data.sessionTopics) setSessionTopics(data.sessionTopics);
         if (data.sundayPlan) setSundayPlan(data.sundayPlan);
-
-      } else {
-        // Initialize daily document if it doesn't exist
+      } else if (!fromCache) {
+        // Only create a fresh day when the SERVER confirms there is none.
+        // A cache-only "missing" snapshot (offline blip, reconnect, sleep/wake)
+        // used to blank the day and flip finished tasks back to pending.
         setDoc(todayRef, { sessions: initSessions(), checklist: initChecklist(), pending: [], completedLog: [], timeShift: 0 }, { merge: true });
       }
       setMounted(true);
     });
 
     return () => { unsubUser(); unsubToday(); };
-  }, [user.uid]);
+  }, [user.uid, dayKey]);
+
 
   /* -- DEFENSIVE RESYNC (fixes stale data in WebView2 / live-wallpaper embeds) --
      Some embedded WebView2 contexts silently drop Firestore's realtime
