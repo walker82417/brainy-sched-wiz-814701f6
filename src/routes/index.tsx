@@ -1009,17 +1009,50 @@ function StudyTimetable({ user }: { user: User }) {
   const runningRow = activeRows.find((r) => isFocusRow(r) && sessions[r.id]?.status === "running") || null;
   const todayIdx = (now.getDay() + 6) % 7;
 
-  const heatmapCells = useMemo(() => {
-    const cells: { key: string; count: number }[] = [];
-    const today = new Date();
-    for (let i = 83; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = localDateKey(d);
-      cells.push({ key, count: heatmapLog[key] || 0 });
+  /* ---- MONTHLY HEATMAP + MONTH-OVER-MONTH COMPARISON ---- */
+  const monthStatsFor = useCallback((y: number, m: number) => {
+    const days = new Date(y, m + 1, 0).getDate();
+    let sessions = 0, activeDays = 0, best = { key: "—", count: 0 };
+    for (let d = 1; d <= days; d++) {
+      const key = localDateKey(new Date(y, m, d));
+      const c = heatmapLog[key] || 0;
+      if (c > 0) { sessions += c; activeDays++; }
+      if (c > best.count) best = { key, count: c };
     }
-    return cells;
-  }, [heatmapLog]);
+    const minutes = completedLog
+      .filter((l) => { const dt = new Date(l.date + "T00:00:00"); return dt.getFullYear() === y && dt.getMonth() === m; })
+      .reduce((a, l) => a + l.durMin, 0);
+    return { sessions, activeDays, minutes, best, days };
+  }, [heatmapLog, completedLog]);
+
+  const monthView = useMemo(() => {
+    const base = new Date();
+    const d = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1);
+    const y = d.getFullYear(), m = d.getMonth();
+    const total = new Date(y, m + 1, 0).getDate();
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday-first
+    const cells: ({ key: string; count: number; day: number } | null)[] = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    for (let day = 1; day <= total; day++) {
+      const key = localDateKey(new Date(y, m, day));
+      cells.push({ key, count: heatmapLog[key] || 0, day });
+    }
+    const cur = monthStatsFor(y, m);
+    const pd = new Date(y, m - 1, 1);
+    const prev = monthStatsFor(pd.getFullYear(), pd.getMonth());
+    const spark = Array.from({ length: 6 }, (_, i) => {
+      const sd = new Date(y, m - (5 - i), 1);
+      const st = monthStatsFor(sd.getFullYear(), sd.getMonth());
+      return { label: sd.toLocaleString(undefined, { month: "short" })[0], hours: st.minutes / 60, sessions: st.sessions };
+    });
+    const sparkMax = Math.max(1, ...spark.map((s) => s.hours));
+    return {
+      label: d.toLocaleString(undefined, { month: "long", year: "numeric" }),
+      cells, cur, prev, spark, sparkMax,
+      isCurrentMonth: monthOffset === 0,
+    };
+  }, [monthOffset, heatmapLog, monthStatsFor]);
+
 
   const analytics = useMemo(() => {
     const nowD = new Date();
