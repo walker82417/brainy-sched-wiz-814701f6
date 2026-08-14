@@ -563,7 +563,7 @@ function StudyTimetable({ user }: { user: User }) {
       window.removeEventListener("online", forceResync);
       window.clearInterval(pollId);
     };
-  }, [user.uid]);
+  }, [user.uid, dayKey]);
 
   // Push updates to Firebase
   const updateToday = (updates: Partial<any>) => setDoc(todayRef, updates, { merge: true });
@@ -686,7 +686,7 @@ function StudyTimetable({ user }: { user: User }) {
   const streak = useMemo(() => {
     let s = 0; const d = new Date();
     while (true) {
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       if (heatmapLog[key] && heatmapLog[key] > 0) { s++; d.setDate(d.getDate() - 1); } else break;
     }
     return s;
@@ -1015,7 +1015,7 @@ function StudyTimetable({ user }: { user: User }) {
     for (let i = 83; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       cells.push({ key, count: heatmapLog[key] || 0 });
     }
     return cells;
@@ -1025,7 +1025,7 @@ function StudyTimetable({ user }: { user: User }) {
     const nowD = new Date();
     const weekAgo = new Date(nowD); weekAgo.setDate(nowD.getDate() - 6);
     const monthAgo = new Date(nowD); monthAgo.setDate(nowD.getDate() - 29);
-    const inRange = (dstr: string, from: Date) => new Date(dstr) >= new Date(from.toISOString().slice(0, 10));
+    const inRange = (dstr: string, from: Date) => dstr >= localDateKey(from);
     const todayLogs = completedLog.filter((l) => l.date === todayKey());
     const weekLogs = completedLog.filter((l) => inRange(l.date, weekAgo));
     const monthLogs = completedLog.filter((l) => inRange(l.date, monthAgo));
