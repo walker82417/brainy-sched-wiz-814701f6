@@ -1325,23 +1325,80 @@ function StudyTimetable({ user }: { user: User }) {
 
                 <div className="tt-col tt-motivPanel">
                   <div className="tt-card" style={{ flex: "0 0 auto" }}>
-                    <h3>CONSISTENCY HEATMAP (12 weeks)</h3>
-                    <div className="tt-heatmapWrap">
-                      <div className="tt-heatmapGrid">
-                        {heatmapCells.map(({ key, count }) => {
-                          let cls = "tt-hcell";
-                          if (count >= 1 && count < 3) cls += " l1";
-                          else if (count >= 3 && count < 6) cls += " l2";
-                          else if (count >= 6 && count < 9) cls += " l3";
-                          else if (count >= 9) cls += " l4";
-                          return <div key={key} className={cls} title={`${key}: ${count} sessions`} />;
-                        })}
+                    <div className="tt-monthHead">
+                      <h3>CONSISTENCY — {monthView.label}</h3>
+                      <div className="tt-monthNav">
+                        <button onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">‹</button>
+                        <button onClick={() => setMonthOffset(0)} disabled={monthView.isCurrentMonth} aria-label="This month">•</button>
+                        <button onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthView.isCurrentMonth} aria-label="Next month">›</button>
                       </div>
-                      <div className="tt-heatmapLegend">
-                        Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More
+                    </div>
+                    <div className="tt-heatmapWrap">
+                      <div className="tt-monthBody">
+                        <div className="tt-monthGridWrap">
+                          <div className="tt-monthDow">
+                            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i}>{d}</span>)}
+                          </div>
+                          <div className="tt-monthGrid">
+                            {monthView.cells.map((c, i) => {
+                              if (!c) return <div key={`e${i}`} className="tt-hcell empty" />;
+                              let cls = "tt-hcell";
+                              if (c.count >= 1 && c.count < 3) cls += " l1";
+                              else if (c.count >= 3 && c.count < 6) cls += " l2";
+                              else if (c.count >= 6 && c.count < 9) cls += " l3";
+                              else if (c.count >= 9) cls += " l4";
+                              if (c.key === todayKey()) cls += " today";
+                              return <div key={c.key} className={cls} title={`${c.key}: ${c.count} sessions`}><i>{c.day}</i></div>;
+                            })}
+                          </div>
+                          <div className="tt-heatmapLegend">
+                            Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More
+                          </div>
+                        </div>
+
+                        <div className="tt-monthCompare">
+                          <div className="tt-mcTitle">vs last month</div>
+                          {([
+                            ["Sessions", monthView.cur.sessions, monthView.prev.sessions, (v: number) => String(v)],
+                            ["Hours", monthView.cur.minutes / 60, monthView.prev.minutes / 60, (v: number) => v.toFixed(1) + "h"],
+                            ["Active days", monthView.cur.activeDays, monthView.prev.activeDays, (v: number) => String(v)],
+                          ] as [string, number, number, (v: number) => string][]).map(([label, cur, prev, fmt]) => {
+                            const delta = cur - prev;
+                            const dir = delta > 0.05 ? "up" : delta < -0.05 ? "down" : "flat";
+                            return (
+                              <div className="tt-mcRow" key={label}>
+                                <span className="tt-mcLabel">{label}</span>
+                                <span className="tt-mcVal">{fmt(cur)}</span>
+                                <span className={`tt-mcDelta ${dir}`}>
+                                  {dir === "up" ? "▲" : dir === "down" ? "▼" : "—"} {fmt(Math.abs(delta))}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          <div className="tt-mcRow">
+                            <span className="tt-mcLabel">Best day</span>
+                            <span className="tt-mcVal">{monthView.cur.best.count ? monthView.cur.best.key.slice(8) : "—"}</span>
+                            <span className="tt-mcDelta flat">{monthView.cur.best.count || 0}×</span>
+                          </div>
+                          <div className="tt-mcRow">
+                            <span className="tt-mcLabel">Streak</span>
+                            <span className="tt-mcVal">{streak}d</span>
+                            <span className="tt-mcDelta flat">now</span>
+                          </div>
+
+                          <div className="tt-spark">
+                            {monthView.spark.map((s, i) => (
+                              <div className="tt-sparkCol" key={i} title={`${s.sessions} sessions · ${s.hours.toFixed(1)}h`}>
+                                <div className="tt-sparkBar" style={{ height: `${Math.max(6, (s.hours / monthView.sparkMax) * 100)}%` }} />
+                                <span>{s.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+
                   <div className="tt-card" style={{ flex: "0 0 auto" }}>
                     <h3>TODAY&apos;S CHECKLIST</h3>
                     <div className="tt-checklist">
