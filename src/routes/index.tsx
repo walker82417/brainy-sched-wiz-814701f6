@@ -427,9 +427,9 @@ function StudyTimetable({ user }: { user: User }) {
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Firestore References
+  // Firestore References — dayKey is state so a real date change re-points the doc
   const userRef = doc(db, "users", user.uid);
-  const todayRef = doc(db, "users", user.uid, "daily", todayKey());
+  const todayRef = doc(db, "users", user.uid, "daily", dayKey);
 
   /* -- GOOGLE SHEETS SYNC -- */
   const postToSheet = useCallback(async (payload: any, type: string) => {
