@@ -117,13 +117,17 @@ type CompletedLog = { date: string; rowId: number; cat: Row["cat"]; durMin: numb
 /* =============================================================
    HELPERS
    ============================================================= */
-const todayKey = () => {
-  const date = new Date();
+/* Single source of truth for day keys — always LOCAL date.
+   (toISOString() is UTC and shifts the day by hours in IST.) */
+const localDateKey = (date: Date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
+const todayKey = () => localDateKey();
+
 
 function fmtTime(sec: number) {
   sec = Math.max(0, sec);
