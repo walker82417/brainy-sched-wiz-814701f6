@@ -220,6 +220,7 @@ function AppWrapper() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [booting, setBooting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
 
@@ -233,12 +234,30 @@ function AppWrapper() {
     });
   }, []);
 
-  // Study-oriented boot sequence for ~5s right after sign-in
+  // Study-oriented boot sequence: driven by real data readiness, with a
+  // ~1.8s floor (so it never flickers) and a 5s ceiling (so it never blocks).
   useEffect(() => {
     if (!booting) return;
-    const t = setTimeout(() => setBooting(false), 5000);
-    return () => clearTimeout(t);
+    let ready = false;
+    let floorDone = false;
+    const finish = () => { if (ready && floorDone) setLeaving(true); };
+    const onReady = () => { ready = true; finish(); };
+    window.addEventListener("tt-data-ready", onReady);
+    const floor = setTimeout(() => { floorDone = true; finish(); }, 1800);
+    const ceiling = setTimeout(() => setLeaving(true), 5000);
+    return () => {
+      window.removeEventListener("tt-data-ready", onReady);
+      clearTimeout(floor);
+      clearTimeout(ceiling);
+    };
   }, [booting]);
+
+  // Smooth handoff: fade the loader out before unmounting it.
+  useEffect(() => {
+    if (!leaving) return;
+    const t = setTimeout(() => { setBooting(false); setLeaving(false); }, 620);
+    return () => clearTimeout(t);
+  }, [leaving]);
 
   if (loading) {
     return (
@@ -246,10 +265,6 @@ function AppWrapper() {
         <h2>Connecting to Command Center...</h2>
       </div>
     );
-  }
-
-  if (user && booting) {
-    return <StudyLoader name={user.displayName || user.email} />;
   }
 
 
@@ -374,7 +389,12 @@ function AppWrapper() {
     );
   }
 
-  return <StudyTimetable user={user} />;
+  return (
+    <>
+      <StudyTimetable user={user} />
+      {booting && <StudyLoader name={user.displayName || user.email} leaving={leaving} />}
+    </>
+  );
 }
 
 /* =============================================================
@@ -512,6 +532,7 @@ function StudyTimetable({ user }: { user: User }) {
         setDoc(todayRef, { sessions: initSessions(), checklist: initChecklist(), pending: [], completedLog: [], timeShift: 0 }, { merge: true });
       }
       setMounted(true);
+      window.dispatchEvent(new Event("tt-data-ready"));
     });
 
     return () => { unsubUser(); unsubToday(); };
