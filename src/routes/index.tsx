@@ -383,6 +383,9 @@ function AppWrapper() {
 function StudyTimetable({ user }: { user: User }) {
   const [mounted, setMounted] = useState(false);
   const [nowTick, setNowTick] = useState(0);
+  // Local calendar day the board is bound to. Updated only on a REAL date change.
+  const [dayKey, setDayKey] = useState(() => todayKey());
+
 
   // State
   const [examDates, setExamDates] = useState(EXAMS_DEFAULT);
