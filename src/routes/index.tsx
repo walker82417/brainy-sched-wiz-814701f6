@@ -399,6 +399,7 @@ function StudyTimetable({ user }: { user: User }) {
 
   // UI State
   const [editingExam, setEditingExam] = useState<ExamKey | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [extendModal, setExtendModal] = useState<{ id: number } | null>(null);
   const [extendMins, setExtendMins] = useState<number>(15);
   const [deductId, setDeductId] = useState<number | 'none'>('none');
