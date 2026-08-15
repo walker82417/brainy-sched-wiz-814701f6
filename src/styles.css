@@ -1162,17 +1162,10 @@
   font-family: var(--tt-font-display);
 }
 
-@media (max-height: 900px) and (min-width: 1000px) {
-  :root {
-    --tt-fit-scale: 0.88;
-  }
-}
+/* Fit scale is measured at runtime (see AUTO-FIT in src/routes/index.tsx).
+   No hardcoded height breakpoints here — they fought the measured value. */
 
-@media (max-height: 780px) and (min-width: 1000px) {
-  :root {
-    --tt-fit-scale: 0.82;
-  }
-}
+
 
 @media (max-width: 1100px) {
   .tt-bottomGrid {
