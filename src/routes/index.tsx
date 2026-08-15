@@ -1122,9 +1122,9 @@ function StudyTimetable({ user }: { user: User }) {
      RENDER
      ========================================================= */
   return (
-    <div className="tt-root">
-      <div className="tt-scaleWrap">
-        <div className="tt-app">
+    <div className="tt-root" ref={rootRef}>
+      <div className="tt-scaleWrap" ref={wrapRef}>
+        <div className="tt-app" ref={appRef}>
           {/* EXAM STRIP */}
           <div className="tt-examStrip">
             {(["ssc", "gate", "ese"] as ExamKey[]).map((key) => {
