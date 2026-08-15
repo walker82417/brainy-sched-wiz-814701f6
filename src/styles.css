@@ -192,6 +192,18 @@
   flex-direction: column;
   overflow: hidden;
 }
+/* Board hit the readability floor and still doesn't fit — scroll instead
+   of shrinking further. */
+.tt-root.tt-fit-overflow {
+  height: auto;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+.tt-root.tt-fit-overflow .tt-scaleWrap,
+.tt-root.tt-fit-overflow .tt-app {
+  height: auto;
+  min-height: calc(100vh / var(--tt-fit-scale));
+}
 
 /* Exam strip */
 .tt-examStrip {
@@ -1162,19 +1174,12 @@
   font-family: var(--tt-font-display);
 }
 
-@media (max-height: 900px) and (min-width: 1000px) {
-  :root {
-    --tt-fit-scale: 0.88;
-  }
-}
+/* Fit scale is measured at runtime (see AUTO-FIT in src/routes/index.tsx).
+   No hardcoded height breakpoints here — they fought the measured value. */
 
-@media (max-height: 780px) and (min-width: 1000px) {
-  :root {
-    --tt-fit-scale: 0.82;
-  }
-}
 
-@media (max-width: 1100px) {
+
+@media (max-width: 1023px) {
   .tt-bottomGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1182,6 +1187,7 @@
     overflow: auto;
   }
 }
+
 
 @media (max-width: 760px) {
   .tt-examStrip,
@@ -1700,8 +1706,8 @@
    RESPONSIVE LAYERS
    ============================================================= */
 
-/* Laptop — stop shrinking, let the grid reflow */
-@media (max-width: 1279px) {
+/* Tablet and below — stop scaling, let the grid reflow */
+@media (max-width: 1023px) {
   :root {
     --tt-fit-scale: 1;
   }
@@ -1722,6 +1728,7 @@
   .tt-mainGrid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
+
   .tt-bottomGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
