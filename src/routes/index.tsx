@@ -1119,6 +1119,106 @@ function StudyTimetable({ user }: { user: User }) {
   }, [completedLog, heatmapLog, streak, liveProgress]);
 
   /* =========================================================
+     AUTO-FIT — measure the real board and scale it so it fits
+     any desktop/laptop resolution and OS/browser zoom level.
+     ========================================================= */
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const appRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const MIN_SCALE = 0.62;
+    let raf = 0;
+    let measuring = false;
+
+    const measure = () => {
+      const root = rootRef.current;
+      const wrap = wrapRef.current;
+      const app = appRef.current;
+      if (!root || !wrap || !app) return;
+
+      // visualViewport reflects browser zoom + OS display scaling correctly.
+      const vv = window.visualViewport;
+      const vw = Math.round(vv?.width ?? window.innerWidth);
+      const vh = Math.round(vv?.height ?? window.innerHeight);
+
+      // Below laptop width we reflow instead of scaling.
+      if (vw < 1024) {
+        root.style.setProperty("--tt-fit-scale", "1");
+        root.classList.remove("tt-fit-overflow");
+        return;
+      }
+
+      measuring = true;
+      const prevTransform = wrap.style.transform;
+      wrap.style.transform = "none";
+
+      let s = 1;
+      for (let i = 0; i < 4; i++) {
+        app.style.width = `${vw / s}px`;
+        app.style.height = "auto";
+        const contentH = app.scrollHeight;
+        if (!contentH) break;
+        const next = Math.min(1, vh / contentH);
+        const clamped = Math.max(MIN_SCALE, next);
+        const settled = Math.abs(clamped - s) < 0.004;
+        s = clamped;
+        if (settled) break;
+      }
+
+      // restore layout-driven sizing
+      app.style.width = "";
+      app.style.height = "";
+      wrap.style.transform = prevTransform;
+
+      root.style.setProperty("--tt-fit-scale", String(Math.round(s * 1000) / 1000));
+      root.classList.toggle("tt-fit-overflow", s <= MIN_SCALE + 0.001);
+      requestAnimationFrame(() => { measuring = false; });
+    };
+
+    const schedule = () => {
+      if (measuring) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(measure);
+    };
+
+    function onDpr() {
+      watchDpr();
+      schedule();
+    }
+
+    let dprQuery: MediaQueryList | null = null;
+    const watchDpr = () => {
+      dprQuery?.removeEventListener("change", onDpr);
+      dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      dprQuery.addEventListener("change", onDpr);
+    };
+
+    schedule();
+    watchDpr();
+
+    window.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+
+    const ro = new ResizeObserver(() => schedule());
+    if (appRef.current) ro.observe(appRef.current);
+
+    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
+    fonts?.ready?.then(() => schedule());
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
+      dprQuery?.removeEventListener("change", onDpr);
+      ro.disconnect();
+    };
+  }, []);
+
+
+  /* =========================================================
      RENDER
      ========================================================= */
   return (
