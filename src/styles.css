@@ -1694,8 +1694,8 @@
    RESPONSIVE LAYERS
    ============================================================= */
 
-/* Laptop — stop shrinking, let the grid reflow */
-@media (max-width: 1279px) {
+/* Tablet and below — stop scaling, let the grid reflow */
+@media (max-width: 1023px) {
   :root {
     --tt-fit-scale: 1;
   }
@@ -1716,6 +1716,7 @@
   .tt-mainGrid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
+
   .tt-bottomGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
