@@ -192,6 +192,18 @@
   flex-direction: column;
   overflow: hidden;
 }
+/* Board hit the readability floor and still doesn't fit — scroll instead
+   of shrinking further. */
+.tt-root.tt-fit-overflow {
+  height: auto;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+.tt-root.tt-fit-overflow .tt-scaleWrap,
+.tt-root.tt-fit-overflow .tt-app {
+  height: auto;
+  min-height: calc(100vh / var(--tt-fit-scale));
+}
 
 /* Exam strip */
 .tt-examStrip {
