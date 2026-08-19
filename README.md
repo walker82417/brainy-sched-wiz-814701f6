@@ -2,9 +2,7 @@
 
 hey chat i wanna built the study timetable and i have sample code but all in one right first step understand and perform the checks
 
-This project was built with [Lovable](https://lovable.dev).
 
-## Build with Lovable
 
 Continue developing this project in the [Lovable editor](https://lovable.dev/projects/b050a983-e068-4f8e-8f28-6b5230e58058).
 
