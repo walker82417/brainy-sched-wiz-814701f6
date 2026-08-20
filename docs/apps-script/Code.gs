@@ -1,26 +1,52 @@
 /**
- * Zero-cost personal backend for Officer Rohan's study timetable.
- *
- * Deploy as a Google Apps Script Web App connected to a Google Sheet.
- * The React website posts plain JSON events to doPost(e). Scheduled
- * triggers call the report functions and MailApp sends the analytics email.
+ * Officer Rohan's Unified Command Center Backend
+ * 1. Webhook (doPost) for Google Sheets Logging
+ * 2. Autonomous Firebase Email Insight Engine (runs itself daily)
  */
 
+// --- CONFIGURATION CONSTANTS ---
+const FIREBASE_PROJECT_ID = "officer-joy";
+const USER_UID = "BeeP2QK682f5yF5a1ihIyINMf6H3";
 const REPORT_RECIPIENTS = ["rohandoiphode1@gmail.com", "rohand11072004@gmail.com"];
-const FRONTEND_DAILY_REPORT_RECIPIENT = "rohandoiphode1@gmail.com";
-const OWNER_NAME = "Officer Rohan";
 const TIMEZONE = "Asia/Kolkata";
-// Change this before deploying in Apps Script only. Do not commit your real secret to GitHub.
-// It must match the private secret saved in the website.
-const SHARED_SECRET = "officerjoy27-28";
+const SHARED_SECRET = "rohan-secure-2026";
+const DAILY_EMAIL_HOUR = 23; // 11 PM
+const DAILY_EMAIL_MINUTE = 30;
 
+/* =====================================================================
+    PART 0: ONE-TIME SETUP — run installDailyTrigger() ONCE manually
+   ===================================================================== */
+function installDailyTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(function (t) {
+    const fn = t.getHandlerFunction();
+    if (fn === "sendDailyReport" || fn === "triggerDailyEmail") {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger("sendDailyReport")
+    .timeBased()
+    .atHour(DAILY_EMAIL_HOUR)
+    .nearMinute(DAILY_EMAIL_MINUTE)
+    .everyDays(1)
+    .inTimezone(TIMEZONE)
+    .create();
+
+  Logger.log(
+    "Daily trigger installed for " + DAILY_EMAIL_HOUR + ":" + DAILY_EMAIL_MINUTE + " " + TIMEZONE,
+  );
+}
+
+/* =====================================================================
+    PART 1: GOOGLE SHEETS WEBHOOK INGESTION
+   ===================================================================== */
 function doGet() {
   return ContentService.createTextOutput(
     JSON.stringify({
       ok: true,
       service: "Officer Joy Apps Script automation",
-      message:
-        "Web app is deployed. Paste this /exec URL into the website, then use Sync Snapshot to test POST automation.",
+      message: "Web app is deployed. Ready to catch POST automation.",
     }),
   ).setMimeType(ContentService.MimeType.JSON);
 }
@@ -31,20 +57,14 @@ function doPost(e) {
   try {
     const raw = e && e.postData && e.postData.contents ? e.postData.contents : "{}";
     const event = JSON.parse(raw);
-    if (!SHARED_SECRET) {
-      throw new Error("Set SHARED_SECRET before deploying the web app.");
-    }
+
     if (event.secret !== SHARED_SECRET) {
       throw new Error("Unauthorized automation request.");
     }
+
     delete event.secret;
-    if (event.type === "daily_report_snapshot") {
-      return sendFrontendDailyReport_(event);
-    }
     appendEvent_(event);
-    if (event.type === "daily_report_snapshot") {
-      sendDailyReport();
-    }
+
     return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(
       ContentService.MimeType.JSON,
     );
@@ -58,81 +78,6 @@ function doPost(e) {
   }
 }
 
-function sendFrontendDailyReport_(event) {
-  const reportData = event.payload && event.payload.report ? event.payload.report : {};
-  const subject = reportData.subject || `${OWNER_NAME} Daily Mission Report`;
-  const body = reportData.body || "Daily mission report payload was received, but no body was provided.";
-
-  MailApp.sendEmail({
-    to: FRONTEND_DAILY_REPORT_RECIPIENT,
-    subject,
-    body,
-  });
-
-  appendDailyReportEvent_(event);
-  appendFrontendEmailLog_(FRONTEND_DAILY_REPORT_RECIPIENT, subject, "Sent Successfully");
-
-  return ContentService.createTextOutput(
-    JSON.stringify({ ok: true, status: "Report Emailed and Logged!" }),
-  ).setMimeType(ContentService.MimeType.JSON);
-}
-
-function appendDailyReportEvent_(event) {
-  const sheet = getSheet_("Events", [
-    "receivedAt",
-    "eventDate",
-    "type",
-    "sentAt",
-    "activity",
-    "category",
-    "status",
-    "minutes",
-    "payloadJson",
-  ]);
-  sheet.appendRow([
-    new Date(),
-    event.date || "",
-    event.type || "daily_report_snapshot",
-    event.sentAt || "",
-    "Daily Mission Report",
-    "Report",
-    "Emailed",
-    0,
-    JSON.stringify(event.payload || {}),
-  ]);
-}
-
-function appendFrontendEmailLog_(recipient, subject, status) {
-  const sheet = getSheet_("EmailLog", ["createdAt", "recipient", "subject", "status"]);
-  sheet.appendRow([new Date(), recipient, subject, status]);
-}
-
-function sendDailyReport() {
-  const dateKey = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
-  const events = getEventsForDate_(dateKey);
-  const report = buildReport_("Daily", dateKey, events);
-  sendReport_(report);
-  appendReport_(report);
-}
-
-function sendWeeklyReport() {
-  const now = new Date();
-  const dateKey = Utilities.formatDate(now, TIMEZONE, "yyyy-MM-dd");
-  const events = getRecentEvents_(7);
-  const report = buildReport_("Weekly", dateKey, events);
-  sendReport_(report);
-  appendReport_(report);
-}
-
-function sendMonthlyReport() {
-  const now = new Date();
-  const dateKey = Utilities.formatDate(now, TIMEZONE, "yyyy-MM-dd");
-  const events = getRecentEvents_(31);
-  const report = buildReport_("Monthly", dateKey, events);
-  sendReport_(report);
-  appendReport_(report);
-}
-
 function appendEvent_(event) {
   const sheet = getSheet_("Events", [
     "receivedAt",
@@ -143,6 +88,7 @@ function appendEvent_(event) {
     "category",
     "status",
     "minutes",
+    "comment",
     "payloadJson",
   ]);
   const payload = event.payload || {};
@@ -156,199 +102,14 @@ function appendEvent_(event) {
     row.cat || payload.category || "",
     payload.status || "",
     payload.minutes || row.dur || "",
+    payload.comment || "",
     JSON.stringify(payload),
   ]);
 }
 
-function buildReport_(period, dateKey, events) {
-  const completed = events.filter((event) => String(event.type).indexOf("completed") !== -1);
-  const extended = events.filter((event) => event.type === "session_extended");
-  const snapshots = events.filter((event) =>
-    ["manual_snapshot", "auto_snapshot", "daily_report_snapshot"].includes(event.type),
-  );
-  const latestSnapshot = snapshots.length ? snapshots[snapshots.length - 1].payload : {};
-  const completedMinutes = completed.reduce((sum, event) => {
-    const row = event.payload && event.payload.row ? event.payload.row : {};
-    return sum + Number(row.dur || 0);
-  }, 0);
-  const extensionMinutes = extended.reduce(
-    (sum, event) => sum + Number(event.payload.minutes || 0),
-    0,
-  );
-  const pending = latestSnapshot.pending || [];
-  const checklist = latestSnapshot.checklist || {};
-  const examDates = latestSnapshot.examDates || {};
-  const subject = `${OWNER_NAME} ${period} Mission Report — ${dateKey}`;
-  const html = [
-    buildEmailStyle_(),
-    `<div class="oj-shell">`,
-    `<h2>${subject}</h2>`,
-    `<p>Jai Hind, ${OWNER_NAME}. Your automated zero-cost mission report is ready.</p>`,
-    buildStatsHtml_(events, completed, completedMinutes, extensionMinutes, pending, checklist),
-    buildExamHtml_(examDates),
-    buildExtensionHtml_(extended),
-    `<p class="oj-command"><b>Tomorrow's command:</b> Protect core subject time first, recover pending missions, and keep the chain alive.</p>`,
-    `<p><b>Discipline today. Selection tomorrow.</b></p>`,
-    `</div>`,
-  ].join("\n");
-  const plain = html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return { period, dateKey, subject, html, plain, eventCount: events.length };
-}
-
-function buildEmailStyle_() {
-  return [
-    `<style>`,
-    `@keyframes ojFill{from{width:0}to{width:var(--oj-width)}}`,
-    `.oj-shell{font-family:Arial,sans-serif;background:#fff8df;border:2px solid #f0b429;border-radius:18px;padding:18px;color:#1f2937}`,
-    `.oj-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}`,
-    `.oj-card{background:#ffffff;border:1px solid #f5d565;border-radius:14px;padding:12px;box-shadow:0 3px 10px rgba(31,41,55,.08)}`,
-    `.oj-label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280}`,
-    `.oj-value{font-size:28px;font-weight:800;color:#92400e;margin-top:4px}`,
-    `.oj-bar{height:12px;background:#fef3c7;border-radius:999px;overflow:hidden;margin-top:10px}`,
-    `.oj-fill{height:12px;background:linear-gradient(90deg,#f59e0b,#22c55e);border-radius:999px;animation:ojFill 1.2s ease-out both}`,
-    `.oj-command{background:#ecfeff;border-left:4px solid #06b6d4;padding:10px;border-radius:10px}`,
-    `</style>`,
-  ].join("\n");
-}
-
-function buildStatsHtml_(
-  events,
-  completed,
-  completedMinutes,
-  extensionMinutes,
-  pending,
-  checklist,
-) {
-  const checklistKeys = Object.keys(checklist || {});
-  const checklistDone = checklistKeys.filter((key) => checklist[key]).length;
-  const checklistTotal = checklistKeys.length || 1;
-  const checklistPct = Math.round((checklistDone / checklistTotal) * 100);
-  const pendingCount = Array.isArray(pending) ? pending.length : 0;
-  const studyHours = (completedMinutes / 60).toFixed(1);
-  return [
-    `<h3>Animated Mission Stats</h3>`,
-    `<p>These zero-cost email stats use HTML/CSS progress bars. If an email client blocks animation, the same bars still show the final values.</p>`,
-    `<div class="oj-grid">`,
-    renderStatCard_("Events captured", events.length, 100),
-    renderStatCard_("Completed sessions", completed.length, Math.min(100, completed.length * 10)),
-    renderStatCard_(
-      "Completed study time",
-      `${studyHours}h`,
-      Math.min(100, Number(studyHours) * 10),
-    ),
-    renderStatCard_("Checklist complete", `${checklistDone}/${checklistKeys.length}`, checklistPct),
-    renderStatCard_(
-      "Extended focus time",
-      `${extensionMinutes} min`,
-      Math.min(100, extensionMinutes),
-    ),
-    renderStatCard_("Pending missions", pendingCount, Math.max(0, 100 - pendingCount * 15)),
-    `</div>`,
-  ].join("\n");
-}
-
-function renderStatCard_(label, value, percent) {
-  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
-  return [
-    `<div class="oj-card">`,
-    `<div class="oj-label">${label}</div>`,
-    `<div class="oj-value">${value}</div>`,
-    `<div class="oj-bar"><div class="oj-fill" style="--oj-width:${safePercent}%;width:${safePercent}%"></div></div>`,
-    `</div>`,
-  ].join("\n");
-}
-
-function buildExamHtml_(examDates) {
-  const keys = Object.keys(examDates || {});
-  if (!keys.length) return "<h3>Exam Countdown</h3><p>No exam targets synced yet.</p>";
-  const rows = keys.map((key) => {
-    const exam = examDates[key];
-    const date = exam.date || "";
-    const days = date
-      ? Math.max(0, Math.ceil((new Date(date + "T00:00:00") - new Date()) / 86400000))
-      : "—";
-    const risk = typeof days === "number" && days < 120 ? "High focus" : "On track";
-    return `<li><b>${exam.label || key}:</b> ${days} days left — ${risk}</li>`;
-  });
-  return `<h3>Exam Countdown Intelligence</h3><ul>${rows.join("")}</ul>`;
-}
-
-function buildExtensionHtml_(extended) {
-  if (!extended.length) return "<h3>Adjustments</h3><p>No extensions recorded.</p>";
-  const rows = extended.map((event) => {
-    const row = event.payload.row || {};
-    return `<li>${row.act || "Focus session"}: +${event.payload.minutes || 0} min; deduction target: ${event.payload.deductionTarget || "not set"}</li>`;
-  });
-  return `<h3>Core Priority Adjustments</h3><ul>${rows.join("")}</ul>`;
-}
-
-function sendReport_(report) {
-  MailApp.sendEmail({
-    to: REPORT_RECIPIENTS.join(","),
-    subject: report.subject,
-    body: report.plain,
-    htmlBody: report.html,
-  });
-  appendEmailLog_("sent", `${report.subject} (${report.eventCount} events)`);
-}
-
-function appendReport_(report) {
-  const sheet = getSheet_("DailyReports", [
-    "createdAt",
-    "period",
-    "date",
-    "subject",
-    "eventCount",
-    "html",
-  ]);
-  sheet.appendRow([
-    new Date(),
-    report.period,
-    report.dateKey,
-    report.subject,
-    report.eventCount,
-    report.html,
-  ]);
-}
-
 function appendEmailLog_(status, message) {
-  const sheet = getSheet_("EmailLog", ["createdAt", "recipient", "subject", "status"]);
-  sheet.appendRow([new Date(), "system", status, message]);
-}
-
-function getEventsForDate_(dateKey) {
-  return getAllEvents_().filter((event) => event.date === dateKey);
-}
-
-function getRecentEvents_(days) {
-  const since = new Date();
-  since.setDate(since.getDate() - days + 1);
-  const sinceKey = Utilities.formatDate(since, TIMEZONE, "yyyy-MM-dd");
-  return getAllEvents_().filter((event) => event.date >= sinceKey);
-}
-
-function getAllEvents_() {
-  const sheet = getSheet_("Events", [
-    "receivedAt",
-    "eventDate",
-    "type",
-    "sentAt",
-    "activity",
-    "category",
-    "status",
-    "minutes",
-    "payloadJson",
-  ]);
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return [];
-  return values.slice(1).map((row) => ({
-    date: row[1],
-    type: row[2],
-    payload: safeJson_(row[8]),
-  }));
+  const sheet = getSheet_("EmailLog", ["createdAt", "status", "message"]);
+  sheet.appendRow([new Date(), status, message]);
 }
 
 function getSheet_(name, headers) {
@@ -358,12 +119,481 @@ function getSheet_(name, headers) {
   return sheet;
 }
 
-function safeJson_(value) {
-  try {
-    return value ? JSON.parse(value) : {};
-  } catch (error) {
-    return { parseError: String(error), raw: value };
+/* =====================================================================
+    PART 2: AUTONOMOUS DAILY INSIGHT EMAIL ENGINE
+   ===================================================================== */
+
+const FOCUS_NAMES = {
+  4: "ELECTRICAL ENGINEERING (THEORY)",
+  6: "ELECTRICAL ENGINEERING (NUMERICALS)",
+  8: "PYQs & MCQs PRACTICE",
+  10: "QUANTITATIVE APTITUDE",
+  11: "REASONING ABILITY",
+  12: "GENERAL STUDIES & CURRENT AFFAIRS",
+  14: "ENGLISH",
+  15: "REVISION & MOCK ANALYSIS",
+};
+const FOCUS_DEFAULT_MINS = { 4: 150, 6: 150, 8: 120, 10: 60, 11: 60, 12: 60, 14: 60, 15: 45 };
+
+function sendDailyReport() {
+  const today = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const lastSentDate = scriptProperties.getProperty("LAST_SENT_DATE");
+
+  if (lastSentDate === today) {
+    Logger.log("Failsafe check: Report already delivered today. Shutting down.");
+    return;
   }
+
+  try {
+    const todayData = fetchDailyDoc_(today);
+    const history = fetchRecentHistory_(today, 30);
+
+    buildAndSendReport(todayData || {}, history, today);
+    scriptProperties.setProperty("LAST_SENT_DATE", today);
+  } catch (error) {
+    Logger.log("Autonomous email pipeline error: " + error.toString());
+    appendEmailLog_("email_error", String(error));
+  }
+}
+
+function fetchDailyDoc_(dateStr) {
+  const url =
+    "https://firestore.googleapis.com/v1/projects/" +
+    FIREBASE_PROJECT_ID +
+    "/databases/(default)/documents/users/" +
+    USER_UID +
+    "/daily/" +
+    dateStr;
+  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  const code = response.getResponseCode();
+  if (code === 404) return null;
+  if (code !== 200) {
+    appendEmailLog_(
+      "firebase_error",
+      "daily/" + dateStr + " -> Code: " + code + " - " + response.getContentText(),
+    );
+    return null;
+  }
+  return flattenFirestore(JSON.parse(response.getContentText()));
+}
+
+function fetchRecentHistory_(todayStr, nDays) {
+  const results = [];
+  const base = new Date(todayStr + "T00:00:00");
+  for (let i = 0; i < nDays; i++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - i);
+    const key = Utilities.formatDate(d, TIMEZONE, "yyyy-MM-dd");
+    const data = fetchDailyDoc_(key);
+    const totalMinutes = sumCompletedMinutes_(data);
+    results.push({ date: key, minutes: totalMinutes, hasData: !!data });
+  }
+  return results;
+}
+
+// Dynamically retrieve session display name supporting custom web app fields.
+function getSessionName_(id, session) {
+  if (session && (session.subject || session.name || session.topic)) {
+    return (session.subject || session.name) + (session.topic ? " (" + session.topic + ")" : "");
+  }
+  return FOCUS_NAMES[id] || "Task #" + id;
+}
+
+function getActiveRowIds_(dailyData) {
+  if (dailyData && dailyData.sessions) {
+    const keys = Object.keys(dailyData.sessions);
+    if (keys.length > 0) {
+      return keys;
+    }
+  }
+  return ["4", "6", "8", "10", "11", "12", "14", "15"];
+}
+
+function partialMinutesForSession_(session, allocatedMin) {
+  if (!session || (session.status !== "running" && session.status !== "paused")) return 0;
+  const allocatedSec = (allocatedMin || 0) * 60;
+  let remainingSec = typeof session.remaining === "number" ? session.remaining : allocatedSec;
+  if (session.status === "running" && session.endTs) {
+    remainingSec = Math.max(0, Math.round((session.endTs - Date.now()) / 1000));
+  }
+  const elapsedSec = Math.max(0, allocatedSec - remainingSec);
+  return Math.round(elapsedSec / 60);
+}
+
+function deductedMinutesByTarget_(extensionLog) {
+  const totals = {};
+  (extensionLog || []).forEach(function (entry) {
+    if (entry.deductedFromRowId === null || entry.deductedFromRowId === undefined || entry.deductedFromRowId === "none") {
+      return;
+    }
+    const key = String(entry.deductedFromRowId);
+    totals[key] = (totals[key] || 0) + (Number(entry.minutes) || 0);
+  });
+  return totals;
+}
+
+function effectiveAllocatedMinutes_(id, session, deductedByTarget) {
+  const defaultMins = FOCUS_DEFAULT_MINS[id] || (session && session.durationAllocated) || 60;
+  const rawAlloc =
+    session && session.durationAllocated !== undefined ? Number(session.durationAllocated) : defaultMins;
+  return Math.max(0, rawAlloc - (deductedByTarget[String(id)] || 0));
+}
+
+function sumCompletedMinutes_(dailyData) {
+  if (!dailyData) return 0;
+  const sessions = dailyData.sessions || {};
+  const completedLog = dailyData.completedLog || [];
+  const deductedByTarget = deductedMinutesByTarget_(dailyData.extensionLog || []);
+  const activeRowIds = getActiveRowIds_(dailyData);
+  const seen = [];
+  let total = 0;
+
+  completedLog.forEach(function (log) {
+    const id = String(log.rowId);
+    const session = sessions[id] || {};
+    const effectiveAlloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
+    total += Math.min(Number(log.durMin) || 0, effectiveAlloc);
+    if (seen.indexOf(id) === -1) seen.push(id);
+  });
+
+  activeRowIds.forEach(function (id) {
+    const session = sessions[id] || {};
+    const alloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
+    if (alloc === 0) return; // Fully traded/deducted away.
+
+    if (seen.indexOf(String(id)) === -1) {
+      if (session.status === "completed") {
+        total += alloc;
+      } else {
+        total += partialMinutesForSession_(session, alloc);
+      }
+    }
+  });
+
+  return total;
+}
+
+function buildAndSendReport(dailyData, history, dateStr) {
+  const sessions = dailyData.sessions || {};
+  const completedLog = dailyData.completedLog || [];
+  const extLog = dailyData.extensionLog || [];
+  const deductedByTarget = deductedMinutesByTarget_(extLog);
+  const activeRowIds = getActiveRowIds_(dailyData);
+  const totalTargetCount = activeRowIds.length;
+
+  let completedCount = 0;
+  let totalMinutes = 0;
+  let partialMinutes = 0;
+  const pendingSubjects = [];
+  const completedIds = [];
+  const minutesBySubject = {};
+
+  completedLog.forEach(function (log) {
+    const id = String(log.rowId);
+    const session = sessions[id] || {};
+    const effectiveAlloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
+    const loggedMinutes = Math.min(Number(log.durMin) || 0, effectiveAlloc);
+    totalMinutes += loggedMinutes;
+    minutesBySubject[id] = (minutesBySubject[id] || 0) + loggedMinutes;
+    if (completedIds.indexOf(id) === -1) {
+      completedIds.push(id);
+      completedCount++;
+    }
+  });
+
+  activeRowIds.forEach(function (id) {
+    const session = sessions[id] || {};
+    const alloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
+
+    // If a session's duration was reduced to 0 via time deduction, it was traded away.
+    if (alloc === 0 && session.status !== "completed") {
+      return;
+    }
+
+    if (completedIds.indexOf(String(id)) === -1 && session.status !== "completed") {
+      const displayName = getSessionName_(id, session);
+      pendingSubjects.push(displayName + " (" + alloc + "m)");
+
+      const partial = partialMinutesForSession_(session, alloc);
+      if (partial > 0) {
+        partialMinutes += partial;
+        minutesBySubject[id] = (minutesBySubject[id] || 0) + partial;
+      }
+    } else if (completedIds.indexOf(String(id)) === -1 && session.status === "completed") {
+      completedCount++;
+      completedIds.push(String(id));
+      totalMinutes += alloc;
+      minutesBySubject[id] = (minutesBySubject[id] || 0) + alloc;
+    }
+  });
+
+  totalMinutes += partialMinutes;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  let streak = 0;
+  for (let i = 0; i < history.length; i++) {
+    if (history[i].minutes > 0) streak++;
+    else break;
+  }
+
+  const weekSlice = history.slice(0, 7);
+  const weeklyMinutes = weekSlice.reduce(function (sum, d) {
+    return sum + d.minutes;
+  }, 0);
+  const daysWithData = weekSlice.filter(function (d) {
+    return d.hasData;
+  }).length || 1;
+  const weeklyAvg = Math.round(weeklyMinutes / daysWithData);
+  const yesterdayMinutes = history.length > 1 ? history[1].minutes : null;
+
+  let trendLine;
+  if (yesterdayMinutes === null) {
+    trendLine = "First day of tracked data — baseline set.";
+  } else if (totalMinutes > yesterdayMinutes) {
+    trendLine = "Up " + (totalMinutes - yesterdayMinutes) + " min vs yesterday. Momentum building.";
+  } else if (totalMinutes < yesterdayMinutes) {
+    trendLine =
+      "Down " + (yesterdayMinutes - totalMinutes) + " min vs yesterday. Worth a stronger push tomorrow.";
+  } else {
+    trendLine = "Exactly matched yesterday's output.";
+  }
+
+  let bestSubjectId = null;
+  Object.keys(minutesBySubject).forEach(function (id) {
+    if (bestSubjectId === null || minutesBySubject[id] > minutesBySubject[bestSubjectId]) {
+      bestSubjectId = id;
+    }
+  });
+
+  const bestSessionObj = bestSubjectId ? sessions[bestSubjectId] : null;
+  const bestSubjectLine = bestSubjectId
+    ? getSessionName_(bestSubjectId, bestSessionObj) + " (" + minutesBySubject[bestSubjectId] + "m)"
+    : "No sessions logged yet today.";
+
+  const p = dateStr.split("-");
+  const formattedDisplayDate = parseInt(p[2], 10) + "/" + parseInt(p[1], 10) + "/" + p[0];
+
+  const subject = "🎯 Officer Rohan | Daily Insight Report • " + formattedDisplayDate;
+  const pct = totalTargetCount > 0 ? Math.round((completedCount / totalTargetCount) * 100) : 0;
+  const motivation = pickMotivationalLine_(completedCount, streak, pendingSubjects.length);
+
+  const plainBody =
+    "Dear Officer Rohan,\n\nStudy Hours: " +
+    hours +
+    "h " +
+    mins +
+    "m\n" +
+    "Sessions Completed: " +
+    completedCount +
+    " / " +
+    totalTargetCount +
+    "\nStreak: " +
+    streak +
+    " day(s)\n" +
+    trendLine +
+    "\n\n(View this email in HTML for the full styled report.)";
+
+  const htmlBody = buildHtmlReport_({
+    dateLabel: formattedDisplayDate,
+    hours: hours,
+    mins: mins,
+    completedCount: completedCount,
+    totalTargetCount: totalTargetCount,
+    pct: pct,
+    streak: streak,
+    bestSubjectLine: bestSubjectLine,
+    weeklyMinutes: weeklyMinutes,
+    weeklyAvg: weeklyAvg,
+    trendLine: trendLine,
+    pendingSubjects: pendingSubjects,
+    extLog: extLog,
+    motivation: motivation,
+  });
+
+  REPORT_RECIPIENTS.forEach(function (recipient) {
+    MailApp.sendEmail({ to: recipient, subject: subject, body: plainBody, htmlBody: htmlBody });
+  });
+
+  appendEmailLog_(
+    "email_sent",
+    "Autonomous insight report sent: " + hours + "h " + mins + "m logged, streak " + streak + "d.",
+  );
+}
+
+function pickMotivationalLine_(completedCount, streak, pendingCount) {
+  if (completedCount > 0 && pendingCount === 0) {
+    return "🏆 Perfect day. All targets cleared — this is exactly what consistency looks like.";
+  }
+  if (streak >= 5) {
+    return "🔥 " + streak + "-day streak going strong. Officers who show up daily are the ones who clear the exam.";
+  }
+  if (completedCount === 0) {
+    return "⚠️ Zero sessions logged today. Tomorrow is a clean slate — start with just one, momentum will follow.";
+  }
+  if (pendingCount <= 2) {
+    return "💪 Almost there today — just " + pendingCount + " left. Finish strong before Sleep.";
+  }
+  return "📘 Steady progress. Every session logged today is a session your future self will thank you for.";
+}
+
+function buildHtmlReport_(d) {
+  const pendingHtml = d.pendingSubjects.length
+    ? "<ul style='margin:0;padding-left:18px;color:#374151;font-size:14px;line-height:1.8;'>" +
+      d.pendingSubjects
+        .map(function (s) {
+          return "<li>" + escapeHtml_(s) + "</li>";
+        })
+        .join("") +
+      "</ul>"
+    : "<p style='color:#16a34a;font-weight:700;font-size:14px;margin:0;'>✅ All targets cleared. Board is fully green.</p>";
+
+  // --- ANIMATED CSS & HTML FOR TIME DEDUCTIONS / COMMENTS ---
+  const extHtml = d.extLog.length
+    ? "<style>" +
+      "@keyframes fadeInSlide { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }" +
+      "@keyframes pulseGlow { 0% { border-left-color: #2b6fd6; } 50% { border-left-color: #f2c14e; } 100% { border-left-color: #2b6fd6; } }" +
+      ".animated-ext-item { animation: fadeInSlide 0.5s ease-out forwards; }" +
+      ".animated-comment-box { animation: fadeInSlide 0.6s ease-out forwards, pulseGlow 3s infinite; }" +
+      "</style>" +
+      "<ul style='margin:0;padding-left:18px;color:#374151;font-size:13px;line-height:1.8;'>" +
+      d.extLog
+        .map(function (ext) {
+          const addedSubj = ext.activity || FOCUS_NAMES[ext.rowId] || "Unknown Subject";
+          const deductText =
+            ext.deductedFromRowId === null || ext.deductedFromRowId === undefined || ext.deductedFromRowId === "none"
+              ? "no deduction"
+              : "from " + (ext.deductedFrom || FOCUS_NAMES[ext.deductedFromRowId] || "another session");
+
+          const commentHtml = ext.comment
+            ? "<div class='animated-comment-box' style='color:#374151;font-style:italic;font-size:12px;background:#f8fafc;border-left:3px solid #2b6fd6;padding:6px 10px;margin:6px 0 8px 0;border-radius:0 6px 6px 0;box-shadow: 0 2px 4px rgba(0,0,0,0.03);'>&ldquo;" +
+              escapeHtml_(ext.comment) +
+              "&rdquo;</div>"
+            : "";
+          return (
+            "<li class='animated-ext-item' style='margin-bottom: 8px;'>Extended <b>" +
+            escapeHtml_(addedSubj) +
+            "</b> <span style='color:#0284c7; font-weight:600;'>+" +
+            ext.minutes +
+            "m</span> (<span style='color:#64748b;'>" +
+            escapeHtml_(deductText) +
+            "</span>)" +
+            commentHtml +
+            "</li>"
+          );
+        })
+        .join("") +
+      "</ul>"
+    : "";
+
+  return (
+    "" +
+    "<div style='font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;background:#f4f6fb;padding:24px;'>" +
+    "<div style='background:linear-gradient(145deg,#151b4d,#1f2870);border-radius:16px 16px 0 0;padding:24px 28px;color:#fff;'>" +
+    "<div style='font-size:12px;letter-spacing:1.5px;color:#f2c14e;font-weight:700;text-transform:uppercase;'>Mission Control • " +
+    d.dateLabel +
+    "</div>" +
+    "<div style='font-size:22px;font-weight:800;margin-top:4px;'>Officer Rohan's Daily Report</div>" +
+    "</div>" +
+    "<div style='background:#fff;padding:24px 28px;'>" +
+    "<div style='background:#fffbea;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;font-size:14px;color:#78350f;font-weight:600;margin-bottom:22px;'>" +
+    d.motivation +
+    "</div>" +
+    "<div style='display:table;width:100%;margin-bottom:22px;'>" +
+    statCell_(d.hours + "h " + d.mins + "m", "Studied Today") +
+    statCell_(d.completedCount + " / " + d.totalTargetCount, "Sessions Done") +
+    statCell_(d.streak + "d 🔥", "Current Streak") +
+    "</div>" +
+    "<div style='margin-bottom:22px;'>" +
+    "<div style='font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;'>Today's Progress — " +
+    d.pct +
+    "%</div>" +
+    "<div style='background:#e5e7eb;border-radius:20px;height:14px;overflow:hidden;'>" +
+    "<div style='background:linear-gradient(90deg,#f2c14e,#2b6fd6,#2a9d5c);height:100%;width:" +
+    d.pct +
+    "%;transition:width 1s ease-in-out;'></div>" +
+    "</div>" +
+    "</div>" +
+    "<div style='margin-bottom:20px;'>" +
+    "<div style='font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;'>Top Subject Today</div>" +
+    "<div style='font-size:15px;color:#151b4d;font-weight:700;'>" +
+    escapeHtml_(d.bestSubjectLine) +
+    "</div>" +
+    "</div>" +
+    "<div style='margin-bottom:20px;padding:14px 16px;background:#f0f4ff;border-radius:10px;'>" +
+    "<div style='font-size:12px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;'>Weekly Trend</div>" +
+    "<div style='font-size:14px;color:#1f2937;line-height:1.6;'>" +
+    "Weekly total: <b>" +
+    Math.floor(d.weeklyMinutes / 60) +
+    "h " +
+    (d.weeklyMinutes % 60) +
+    "m</b><br>" +
+    "Daily average: <b>" +
+    Math.floor(d.weeklyAvg / 60) +
+    "h " +
+    (d.weeklyAvg % 60) +
+    "m</b><br>" +
+    escapeHtml_(d.trendLine) +
+    "</div>" +
+    "</div>" +
+    "<div style='margin-bottom:20px;'>" +
+    "<div style='font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;'>Pending Today</div>" +
+    pendingHtml +
+    "</div>" +
+    (extHtml
+      ? "<div style='margin-bottom:6px;'>" +
+        "<div style='font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;'>Time Adjustments &amp; Notes</div>" +
+        extHtml +
+        "</div>"
+      : "") +
+    "</div>" +
+    "<div style='background:#151b4d;border-radius:0 0 16px 16px;padding:16px 28px;text-align:center;'>" +
+    "<div style='color:#f2c14e;font-size:12px;font-style:italic;'>&quot;The harder you work for something, the greater you'll feel when you achieve it.&quot;</div>" +
+    "<div style='color:#9ca3af;font-size:10px;margin-top:6px;'>Mission Control Server • Autonomous</div>" +
+    "</div>" +
+    "</div>"
+  );
+}
+
+function statCell_(value, label) {
+  return (
+    "<div style='display:table-cell;width:33%;text-align:center;'>" +
+    "<div style='font-size:20px;font-weight:800;color:#151b4d;'>" +
+    value +
+    "</div>" +
+    "<div style='font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;'>" +
+    label +
+    "</div>" +
+    "</div>"
+  );
+}
+
+function escapeHtml_(str) {
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function flattenFirestore(obj) {
+  if (!obj) return null;
+  if (obj.fields) {
+    const res = {};
+    for (const key in obj.fields) {
+      res[key] = flattenFirestore(obj.fields[key]);
+    }
+    return res;
+  }
+  if (obj.mapValue) return flattenFirestore(obj.mapValue);
+  if (obj.arrayValue) {
+    const list = obj.arrayValue.values || [];
+    return list.map(flattenFirestore);
+  }
+  if (Object.prototype.hasOwnProperty.call(obj, "stringValue")) return obj.stringValue;
+  if (Object.prototype.hasOwnProperty.call(obj, "integerValue")) return parseInt(obj.integerValue, 10);
+  if (Object.prototype.hasOwnProperty.call(obj, "doubleValue")) return parseFloat(obj.doubleValue);
+  if (Object.prototype.hasOwnProperty.call(obj, "booleanValue")) return obj.booleanValue;
+  if (Object.prototype.hasOwnProperty.call(obj, "nullValue")) return null;
+  return obj;
 }
 
 // END OF FILE - paste through this line into Apps Script.
