@@ -221,23 +221,45 @@ function partialMinutesForSession_(session, allocatedMin) {
   return Math.round(elapsedSec / 60);
 }
 
+function deductedMinutesByTarget_(extensionLog) {
+  const totals = {};
+  (extensionLog || []).forEach(function (entry) {
+    if (entry.deductedFromRowId === null || entry.deductedFromRowId === undefined || entry.deductedFromRowId === "none") {
+      return;
+    }
+    const key = String(entry.deductedFromRowId);
+    totals[key] = (totals[key] || 0) + (Number(entry.minutes) || 0);
+  });
+  return totals;
+}
+
+function effectiveAllocatedMinutes_(id, session, deductedByTarget) {
+  const defaultMins = FOCUS_DEFAULT_MINS[id] || (session && session.durationAllocated) || 60;
+  const rawAlloc =
+    session && session.durationAllocated !== undefined ? Number(session.durationAllocated) : defaultMins;
+  return Math.max(0, rawAlloc - (deductedByTarget[String(id)] || 0));
+}
+
 function sumCompletedMinutes_(dailyData) {
   if (!dailyData) return 0;
   const sessions = dailyData.sessions || {};
   const completedLog = dailyData.completedLog || [];
+  const deductedByTarget = deductedMinutesByTarget_(dailyData.extensionLog || []);
   const activeRowIds = getActiveRowIds_(dailyData);
   const seen = [];
   let total = 0;
 
   completedLog.forEach(function (log) {
-    total += log.durMin || 0;
-    if (seen.indexOf(String(log.rowId)) === -1) seen.push(String(log.rowId));
+    const id = String(log.rowId);
+    const session = sessions[id] || {};
+    const effectiveAlloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
+    total += Math.min(Number(log.durMin) || 0, effectiveAlloc);
+    if (seen.indexOf(id) === -1) seen.push(id);
   });
 
   activeRowIds.forEach(function (id) {
     const session = sessions[id] || {};
-    const defaultMins = FOCUS_DEFAULT_MINS[id] || session.durationAllocated || 60;
-    const alloc = session.durationAllocated !== undefined ? session.durationAllocated : defaultMins;
+    const alloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
     if (alloc === 0) return; // Fully traded/deducted away.
 
     if (seen.indexOf(String(id)) === -1) {
@@ -256,6 +278,7 @@ function buildAndSendReport(dailyData, history, dateStr) {
   const sessions = dailyData.sessions || {};
   const completedLog = dailyData.completedLog || [];
   const extLog = dailyData.extensionLog || [];
+  const deductedByTarget = deductedMinutesByTarget_(extLog);
   const activeRowIds = getActiveRowIds_(dailyData);
   const totalTargetCount = activeRowIds.length;
 
@@ -267,18 +290,21 @@ function buildAndSendReport(dailyData, history, dateStr) {
   const minutesBySubject = {};
 
   completedLog.forEach(function (log) {
-    totalMinutes += log.durMin || 0;
-    minutesBySubject[log.rowId] = (minutesBySubject[log.rowId] || 0) + (log.durMin || 0);
-    if (completedIds.indexOf(String(log.rowId)) === -1) {
-      completedIds.push(String(log.rowId));
+    const id = String(log.rowId);
+    const session = sessions[id] || {};
+    const effectiveAlloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
+    const loggedMinutes = Math.min(Number(log.durMin) || 0, effectiveAlloc);
+    totalMinutes += loggedMinutes;
+    minutesBySubject[id] = (minutesBySubject[id] || 0) + loggedMinutes;
+    if (completedIds.indexOf(id) === -1) {
+      completedIds.push(id);
       completedCount++;
     }
   });
 
   activeRowIds.forEach(function (id) {
     const session = sessions[id] || {};
-    const defaultMins = FOCUS_DEFAULT_MINS[id] || session.durationAllocated || 60;
-    const alloc = session.durationAllocated !== undefined ? session.durationAllocated : defaultMins;
+    const alloc = effectiveAllocatedMinutes_(id, session, deductedByTarget);
 
     // If a session's duration was reduced to 0 via time deduction, it was traded away.
     if (alloc === 0 && session.status !== "completed") {

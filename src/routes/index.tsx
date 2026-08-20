@@ -113,6 +113,7 @@ const EXAMS_DEFAULT: Record<ExamKey, { label: string; date: string }> = {
 type SessionStatus = "notstarted" | "running" | "paused" | "completed";
 type SessionRec = { status: SessionStatus; remaining: number; endTs: number | null; warned: boolean; durationAllocated?: number; topic?: string; };
 type CompletedLog = { date: string; rowId: number; cat: Row["cat"]; durMin: number; ts: number };
+type ChecklistState = Record<string, boolean>;
 
 /* =============================================================
    HELPERS
@@ -169,6 +170,11 @@ function initChecklist(): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   CHECKLIST_ITEMS.forEach((it) => (out[it] = false));
   return out;
+}
+
+function markChecklistItemDone(checklistState: ChecklistState, rowId: number): ChecklistState {
+  const checklistItem = ROW_CHECKLIST_MAP[rowId];
+  return checklistItem ? { ...checklistState, [checklistItem]: true } : checklistState;
 }
 
 /* =============================================================
@@ -885,8 +891,7 @@ function StudyTimetable({ user }: { user: User }) {
       newLog = [...completedLog, { date: todayKey(), rowId: id, cat: row.cat, durMin: finalDur, ts: Date.now() }];
     }
 
-    const checklistItem = ROW_CHECKLIST_MAP[id];
-    const newChecklist = checklistItem ? { ...checklist, [checklistItem]: true } : checklist;
+    const newChecklist = markChecklistItemDone(checklist, id);
 
     playCompleteChime();
     setSessions(nextSessions);
@@ -933,7 +938,17 @@ function StudyTimetable({ user }: { user: User }) {
 
     if (targetDeductId !== 'none' && nextSessions[targetDeductId]) {
       const dst = nextSessions[targetDeductId];
-      nextSessions[targetDeductId] = { ...dst, remaining: Math.max(0, dst.remaining - minutes * 60) };
+      const dstRow = activeRows.find((r) => r.id === targetDeductId);
+      const dstAllocated = dst.durationAllocated ?? dstRow?.dur ?? 0;
+      const nextAllocated = Math.max(0, dstAllocated - minutes);
+      const nextRemaining = Math.min(nextAllocated * 60, Math.max(0, dst.remaining - minutes * 60));
+      nextSessions[targetDeductId] = {
+        ...dst,
+        remaining: nextRemaining,
+        endTs: dst.status === "running" && nextRemaining > 0 ? Date.now() + nextRemaining * 1000 : null,
+        durationAllocated: nextAllocated,
+        status: nextAllocated === 0 ? "completed" : dst.status,
+      };
     } else {
       newShift += minutes;
     }
@@ -952,6 +967,28 @@ function StudyTimetable({ user }: { user: User }) {
          newChecklist = { ...checklist, [checklistItem]: false };
        }
     }
+
+    if (targetDeductId !== 'none') {
+      const deductedSession = nextSessions[targetDeductId];
+      const deductedRow = activeRows.find((r) => r.id === targetDeductId);
+      const alreadyLogged = completedLog.some((log) => log.date === todayKey() && log.rowId === targetDeductId);
+      if (deductedSession?.durationAllocated === 0 && deductedRow && !alreadyLogged) {
+        newLog = [
+          ...newLog,
+          { date: todayKey(), rowId: targetDeductId, cat: deductedRow.cat, durMin: 0, ts: Date.now() },
+        ];
+        newChecklist = markChecklistItemDone(newChecklist, targetDeductId);
+      }
+    }
+
+    const completedByDeduction =
+      targetDeductId !== 'none' && nextSessions[targetDeductId]?.durationAllocated === 0
+        ? targetDeductId
+        : null;
+    const newPending =
+      completedByDeduction === null
+        ? pending
+        : pending.filter((pendingId) => pendingId !== completedByDeduction);
 
     // Silently log this extension to Firebase for the email engine.
     const deductedFrom =
@@ -976,6 +1013,7 @@ function StudyTimetable({ user }: { user: User }) {
       timeShift: newShift,
       completedLog: newLog,
       checklist: newChecklist,
+      pending: newPending,
       extensionLog: [...extensionLog, extensionEntry],
       sessionsCompleted: newLog.filter((l) => l.date === todayKey()).length,
       minutesCompleted: newLog.filter((l) => l.date === todayKey()).reduce((a, l) => a + l.durMin, 0),
