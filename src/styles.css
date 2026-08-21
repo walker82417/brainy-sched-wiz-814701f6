@@ -1848,3 +1848,11 @@
   .tt-bottomGrid { align-items: start; overflow: visible; }
   .tt-bottomGrid > .tt-col { align-self: start; }
 }
+
+
+/* Let each dashboard card stop at its own content height instead of inheriting
+   the tallest column's height; this removes the large unusable panels. */
+.tt-bottomGrid { align-items: start; grid-auto-rows: min-content; }
+.tt-bottomGrid > .tt-col { align-self: start; }
+.tt-analyticsCard { height: auto; }
+.tt-analyticsGrid { flex: 0 0 auto; }

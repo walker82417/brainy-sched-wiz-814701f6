@@ -1092,12 +1092,18 @@ function StudyTimetable({ user }: { user: User }) {
   // New entries are exact. Older session-only history is shown with a clearly
   // consistent one-hour-per-session fallback until a user completes new sessions.
   const studyMinutesForDate = useCallback((key: string) => {
-    if (studyMinutesLog[key] !== undefined) return studyMinutesLog[key];
+    const storedMinutes = studyMinutesLog[key];
     const localMinutes = completedLog
       .filter((entry) => entry.date === key)
       .reduce((total, entry) => total + entry.durMin, 0);
+
+    // The current session is not complete yet, so it is not in Firebase's
+    // completed-minute log. Include its live elapsed time immediately instead
+    // of making today's heatmap wait until the session is completed.
+    if (key === todayKey()) return Math.max(storedMinutes || 0, localMinutes, liveProgress.studied);
+    if (storedMinutes !== undefined) return storedMinutes;
     return localMinutes || (heatmapLog[key] || 0) * 60;
-  }, [studyMinutesLog, completedLog, heatmapLog]);
+  }, [studyMinutesLog, completedLog, heatmapLog, liveProgress.studied]);
 
   const monthStatsFor = useCallback((y: number, m: number) => {
     const days = new Date(y, m + 1, 0).getDate();
@@ -1124,7 +1130,10 @@ function StudyTimetable({ user }: { user: User }) {
     for (let i = 0; i < lead; i++) cells.push(null);
     for (let day = 1; day <= total; day++) {
       const key = localDateKey(new Date(y, m, day));
-      const count = heatmapLog[key] || 0;
+      const storedSessions = heatmapLog[key] || 0;
+      // Keep today's cell live as sessions are completed locally, before the
+      // Firestore round trip arrives on another device.
+      const count = key === todayKey() ? Math.max(storedSessions, doneToday.length) : storedSessions;
       const minutes = studyMinutesForDate(key);
       // A two-hour study block should be visible even when it is only one session.
       const intensity = Math.max(count, Math.ceil(minutes / 60));
@@ -1144,7 +1153,7 @@ function StudyTimetable({ user }: { user: User }) {
       cells, cur, prev, spark, sparkMax,
       isCurrentMonth: monthOffset === 0,
     };
-  }, [monthOffset, heatmapLog, studyMinutesLog, studyMinutesForDate, monthStatsFor]);
+  }, [monthOffset, heatmapLog, studyMinutesLog, studyMinutesForDate, monthStatsFor, doneToday.length]);
 
 
   const analytics = useMemo(() => {
