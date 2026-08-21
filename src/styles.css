@@ -1822,3 +1822,29 @@
     justify-content: center;
   }
 }
+
+
+/* Small screens keep every control reachable without horizontal page overflow. */
+@media (max-width: 767px) {
+  .tt-examBox { min-width: 0; }
+  .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
+  .tt-examTags { line-height: 1.5; }
+  .tt-heatmapMetric { display: block; margin-top: 8px; font-size: 10px; text-align: center; color: #586174; }
+  .tt-glassOverlay { align-items: flex-end; padding: 8px; }
+  .tt-glassActions, .tt-glassChips { flex-wrap: wrap; }
+  .tt-glassBtn, .tt-glassChip { min-height: 44px; }
+  .tt-timerMini { width: calc(100% - 24px); max-width: 420px; padding: 9px 14px; gap: 8px; }
+  .tt-timerMini .tt-tmSubj { max-width: min(58vw, 250px); }
+}
+
+
+/* Keep the board content-sized at every browser zoom level. The previous
+   viewport-sized canvas produced a huge empty area at 25% zoom. */
+@media (min-width: 768px) {
+  .tt-root { height: auto; min-height: 0; overflow: visible; }
+  .tt-scaleWrap { height: auto; min-height: 0; }
+  .tt-app { height: auto; min-height: 0; overflow: visible; }
+  .tt-bottomGrid { align-items: start; overflow: visible; }
+  .tt-bottomGrid > .tt-col { align-self: start; }
+}
