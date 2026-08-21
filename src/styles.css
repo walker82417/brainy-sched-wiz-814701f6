@@ -195,14 +195,14 @@
 /* Board hit the readability floor and still doesn't fit — scroll instead
    of shrinking further. */
 .tt-root.tt-fit-overflow {
-  height: auto;
-  min-height: 100vh;
-  overflow-y: auto;
+  height: 100vh;
+  overflow: hidden;
 }
 .tt-root.tt-fit-overflow .tt-scaleWrap,
 .tt-root.tt-fit-overflow .tt-app {
-  height: auto;
-  min-height: calc(100vh / var(--tt-fit-scale));
+  height: calc(100vh / var(--tt-fit-scale));
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Exam strip */
@@ -317,7 +317,7 @@
   display: inline-block;
   padding: 2px 10px;
   border-radius: 3px;
-  font-size: clamp(10px, 0.72vw, 11px);
+  font-size: clamp(11px, 0.78vw, 12.5px);
   font-weight: 700;
 }
 .tt-examTags b.blue {
@@ -386,7 +386,7 @@
 }
 .tt-quoteBar {
   text-align: center;
-  font-size: 10.5px;
+  font-size: clamp(11px, 0.76vw, 12px);
   font-style: italic;
   color: #333;
   padding: 2px 0;
@@ -531,7 +531,7 @@
 .tt-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: clamp(10px, 0.72vw, 11px);
+  font-size: clamp(11px, 0.78vw, 12.5px);
   table-layout: fixed;
 }
 .tt-table thead th {
@@ -539,7 +539,7 @@
   color: #fff;
   padding: 2px 6px;
   text-align: left;
-  font-size: 10px;
+  font-size: clamp(10.5px, 0.72vw, 12px);
   font-family: var(--tt-font-display);
   letter-spacing: 0.5px;
 }
@@ -547,7 +547,7 @@
   padding: 1px 5px;
   border-bottom: 1px solid var(--tt-line);
   vertical-align: middle;
-  line-height: 1.25;
+  line-height: 1.32;
 }
 
 .tt-table tbody tr:nth-child(even) {
@@ -658,7 +658,7 @@
   border-radius: 6px;
   padding: 6px;
   z-index: 60;
-  font-size: 10.5px;
+  font-size: clamp(11px, 0.76vw, 12px);
 }
 .tt-extPopup button {
   display: block;
@@ -669,7 +669,7 @@
   background: #f5f6fa;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 10.5px;
+  font-size: clamp(11px, 0.76vw, 12px);
 }
 .tt-extPopup button:hover {
   background: var(--tt-gold);
@@ -922,7 +922,7 @@
 }
 .tt-tmHint {
   text-align: center;
-  font-size: 10.5px;
+  font-size: clamp(11px, 0.76vw, 12px);
   color: var(--tt-grey);
   margin-bottom: 8px;
 }
@@ -1056,7 +1056,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: clamp(11px, 0.76vw, 12px);
   margin: 1px 0;
 }
 .tt-checklist input[type="checkbox"] {
@@ -1084,7 +1084,7 @@
   border-radius: 5px;
   padding: 8px;
   text-align: center;
-  font-size: 10.5px;
+  font-size: clamp(11px, 0.76vw, 12px);
   font-weight: 800;
   color: var(--tt-navy);
   flex: 0 0 auto;
@@ -1098,8 +1098,8 @@
 .tt-emailCard p {
   margin: 0 0 6px;
   color: var(--tt-grey);
-  font-size: 10px;
-  line-height: 1.3;
+  font-size: clamp(10.5px, 0.72vw, 12px);
+  line-height: 1.35;
 }
 .tt-emailCard button {
   border: none;
@@ -1863,4 +1863,56 @@
 .tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
 .tt-heatmapDetails { max-width: 520px; }
 .tt-heatmapDetailList { display: grid; gap: 8px; max-height: 45vh; overflow: auto; }
-.tt-heatmapDetailList > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
+.tt-heatmapDetailItem { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
+.tt-heatmapDetailItem span { display: grid; gap: 3px; }
+.tt-heatmapDetailItem em { font-style: normal; font-size: 11px; color: #586174; }
+.tt-heatmapExtension { background: rgba(242,193,78,.18); border: 1px solid rgba(242,193,78,.35); }
+
+.tt-heatmapHoverOverlay { pointer-events: none; }
+.tt-heatmapHoverOverlay .tt-heatmapDetails { pointer-events: auto; }
+
+/* Desktop single-page fit: use the full viewport without creating page scroll. */
+@media (min-width: 1024px) {
+  .tt-mainGrid { padding-top: 4px; }
+  .tt-leftCol { grid-template-rows: auto minmax(0, 1fr); }
+  .tt-table th:nth-child(3), .tt-table td:nth-child(3),
+  .tt-table th:nth-child(4), .tt-table td:nth-child(4) { white-space: normal; }
+  .tt-bottomGrid {
+    grid-template-columns: minmax(240px, .95fr) minmax(280px, 1.05fr) minmax(280px, 1.05fr) minmax(250px, .95fr);
+    align-items: stretch;
+  }
+  .tt-bottomGrid > .tt-col { height: 100%; }
+  .tt-analyticsCard, .tt-heatmapWrap, .tt-checklist { flex: 1 1 auto; }
+  .tt-analyticsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tt-card { min-height: 0; }
+}
+
+/* Final single-screen guard: later responsive rules must not re-enable page scrolling. */
+.tt-root {
+  height: 100vh;
+  overflow: hidden;
+}
+.tt-scaleWrap {
+  height: calc(100vh / var(--tt-fit-scale));
+}
+.tt-app {
+  height: calc(100vh / var(--tt-fit-scale));
+  overflow: hidden;
+}
+
+/* Readability and space utilization pass: fill available panels instead of leaving empty center space. */
+@media (min-width: 1024px) {
+  .tt-table thead th { padding: 3px 7px; }
+  .tt-table tbody td { padding: 2px 7px; }
+  .tt-rowIcon { font-size: clamp(15px, .95vw, 18px); }
+  .tt-statusPill { font-size: clamp(9.5px, .65vw, 11px); }
+  .tt-actBtns button { width: clamp(22px, 1.3vw, 28px); height: clamp(22px, 1.3vw, 28px); font-size: clamp(10px, .7vw, 12px); }
+  .tt-card h3 { font-size: clamp(11px, .8vw, 13px); }
+  .tt-card { padding: clamp(6px, .45vw, 10px) clamp(9px, .65vw, 14px); }
+  .tt-bottomGrid > .tt-col > .tt-card { flex: 1 1 0; }
+  .tt-bottomGrid > .tt-col > .tt-card[style] { flex: 1 1 0 !important; }
+  .tt-analyticsGrid { height: 100%; }
+  .tt-progressCard { justify-content: center; }
+  .tt-ringCanvas { width: clamp(76px, 5vw, 100px); height: clamp(76px, 5vw, 100px); }
+  .tt-rememberBox { flex: 1 1 0; font-size: clamp(11px, .78vw, 13px); }
+}
