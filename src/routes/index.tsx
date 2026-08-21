@@ -1072,7 +1072,7 @@ function StudyTimetable({ user }: { user: User }) {
     heatmapHoverTimerRef.current = window.setTimeout(() => {
       heatmapHoverTimerRef.current = null;
       openHeatmapDay(date);
-    }, 2000);
+    }, 1000);
   };
 
   const closeHeatmapDay = () => {
@@ -1266,7 +1266,7 @@ function StudyTimetable({ user }: { user: User }) {
   const appRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const MIN_SCALE = 0.62;
+    const MIN_SCALE = 0.52;
     let raf = 0;
     let measuring = false;
 
@@ -1608,7 +1608,7 @@ function StudyTimetable({ user }: { user: User }) {
                               else if (c.intensity === 3) cls += " l3";
                               else if (c.intensity >= 4) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onMouseLeave={closeHeatmapDay} onFocus={() => scheduleHeatmapDay(c.key)} onBlur={closeHeatmapDay} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
+                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onFocus={() => scheduleHeatmapDay(c.key)} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">

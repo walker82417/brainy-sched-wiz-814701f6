@@ -199,15 +199,14 @@
 /* Board hit the readability floor and still doesn't fit — scroll instead
    of shrinking further. */
 .tt-root.tt-fit-overflow {
-  height: auto;
-  min-height: 100vh;
-  overflow-y: auto;
+  height: 100vh;
+  overflow: hidden;
 }
 .tt-root.tt-fit-overflow .tt-scaleWrap,
 .tt-root.tt-fit-overflow .tt-app {
-  height: auto;
-  min-height: calc(100vh / var(--tt-fit-scale));
-  overflow: visible;
+  height: calc(100vh / var(--tt-fit-scale));
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Exam strip */
@@ -1875,3 +1874,32 @@
 
 .tt-heatmapHoverOverlay { pointer-events: none; }
 .tt-heatmapHoverOverlay .tt-heatmapDetails { pointer-events: auto; }
+
+/* Desktop single-page fit: use the full viewport without creating page scroll. */
+@media (min-width: 1024px) {
+  .tt-mainGrid { padding-top: 4px; }
+  .tt-leftCol { grid-template-rows: auto minmax(0, 1fr); }
+  .tt-table th:nth-child(3), .tt-table td:nth-child(3),
+  .tt-table th:nth-child(4), .tt-table td:nth-child(4) { white-space: normal; }
+  .tt-bottomGrid {
+    grid-template-columns: minmax(240px, .95fr) minmax(280px, 1.05fr) minmax(280px, 1.05fr) minmax(250px, .95fr);
+    align-items: stretch;
+  }
+  .tt-bottomGrid > .tt-col { height: 100%; }
+  .tt-analyticsCard, .tt-heatmapWrap, .tt-checklist { flex: 1 1 auto; }
+  .tt-analyticsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tt-card { min-height: 0; }
+}
+
+/* Final single-screen guard: later responsive rules must not re-enable page scrolling. */
+.tt-root {
+  height: 100vh;
+  overflow: hidden;
+}
+.tt-scaleWrap {
+  height: calc(100vh / var(--tt-fit-scale));
+}
+.tt-app {
+  height: calc(100vh / var(--tt-fit-scale));
+  overflow: hidden;
+}
