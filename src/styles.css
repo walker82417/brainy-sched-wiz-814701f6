@@ -1856,3 +1856,11 @@
 .tt-bottomGrid > .tt-col { align-self: start; }
 .tt-analyticsCard { height: auto; }
 .tt-analyticsGrid { flex: 0 0 auto; }
+
+
+/* Avoid reserving a full-height third row for the dashboard on wide screens. */
+.tt-leftCol { grid-template-rows: auto auto auto; overflow: visible; }
+.tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
+.tt-heatmapDetails { max-width: 520px; }
+.tt-heatmapDetailList { display: grid; gap: 8px; max-height: 45vh; overflow: auto; }
+.tt-heatmapDetailList > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }

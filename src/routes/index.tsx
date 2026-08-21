@@ -429,6 +429,7 @@ function StudyTimetable({ user }: { user: User }) {
   // UI State
   const [editingExam, setEditingExam] = useState<ExamKey | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [heatmapDay, setHeatmapDay] = useState<{ date: string; logs: CompletedLog[]; loading: boolean } | null>(null);
   const [extendModal, setExtendModal] = useState<{ id: number } | null>(null);
   const [extendMins, setExtendMins] = useState<number>(15);
   const [deductId, setDeductId] = useState<number | 'none'>('none');
@@ -1042,6 +1043,20 @@ function StudyTimetable({ user }: { user: User }) {
     postToSheet(extensionEntry, reopened ? "session_reopened_extended" : "session_extended");
   };
 
+  const openHeatmapDay = async (date: string) => {
+    setHeatmapDay({ date, logs: [], loading: true });
+    try {
+      const snapshot = await getDoc(doc(db, "users", user.uid, "daily", date));
+      const logs = snapshot.exists() && Array.isArray(snapshot.data().completedLog)
+        ? snapshot.data().completedLog as CompletedLog[]
+        : [];
+      setHeatmapDay({ date, logs, loading: false });
+    } catch (error) {
+      console.error("Could not load heatmap day", error);
+      setHeatmapDay({ date, logs: [], loading: false });
+    }
+  };
+
   const saveExamDate = (key: ExamKey, val: string) => {
     if (!val) return;
     const newExams = { ...examDates, [key]: { ...examDates[key], date: val } };
@@ -1553,7 +1568,7 @@ function StudyTimetable({ user }: { user: User }) {
                               else if (c.intensity >= 6 && c.intensity < 9) cls += " l3";
                               else if (c.intensity >= 9) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <div key={c.key} className={cls} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></div>;
+                              return <button key={c.key} type="button" className={cls} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">
@@ -1620,6 +1635,24 @@ function StudyTimetable({ user }: { user: User }) {
           <div className="tt-footerQuote">FOCUS ON YOUR GOAL. DON&apos;T LOOK IN ANY DIRECTION BUT AHEAD. &nbsp;|&nbsp; YOUR HARD WORK WILL DEFINITELY PAY OFF. ★ ★ ★</div>
         </div>
       </div>
+
+      {heatmapDay && (
+        <div className="tt-glassOverlay" onClick={() => setHeatmapDay(null)}>
+          <div className="tt-glassBox tt-heatmapDetails" onClick={(event) => event.stopPropagation()}>
+            <div className="tt-glassHead">
+              <div className="tt-glassIcon">📅</div>
+              <div><div className="tt-glassEyebrow">Study history</div><div className="tt-glassTitle">{heatmapDay.date}</div></div>
+              <button className="tt-glassClose" onClick={() => setHeatmapDay(null)} aria-label="Close">×</button>
+            </div>
+            {heatmapDay.loading ? <div className="tt-glassHint">Loading completed sessions…</div> : heatmapDay.logs.length ? (
+              <div className="tt-heatmapDetailList">{heatmapDay.logs.map((log) => {
+                const row = ROWS.find((item) => item.id === log.rowId);
+                return <div key={`${log.rowId}-${log.ts}`}><span>{row?.icon || "📚"} {row?.act || "Study session"}</span><b>{log.durMin}m</b></div>;
+              })}</div>
+            ) : <div className="tt-glassHint">No detailed session log is available for this older date. Its heatmap total is shown above.</div>}
+          </div>
+        </div>
+      )}
 
       {/* SUNDAY PLANNER — build the whole day yourself */}
       {sundayModal && (
