@@ -169,48 +169,45 @@
   box-sizing: border-box;
 }
 .tt-root {
-  min-height: 100vh;
-  height: auto;
-  overflow-y: auto;
-  overflow-x: hidden;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
   background: #e9eaf2;
   font-family: var(--tt-font-body);
   color: var(--tt-text);
 }
 .tt-scaleWrap {
-  min-height: calc(100vh / var(--tt-fit-scale));
-  height: auto;
+  height: calc(100vh / var(--tt-fit-scale));
   width: calc(100% / var(--tt-fit-scale));
   display: flex;
   align-items: stretch;
   transform: scale(var(--tt-fit-scale));
   transform-origin: top left;
+  overflow: hidden;
 }
 .tt-app {
   width: 100%;
-  min-height: calc(100vh / var(--tt-fit-scale));
-  height: auto;
+  height: calc(100vh / var(--tt-fit-scale));
   background: var(--tt-paper);
   border: 2px solid var(--tt-navy);
-  display: flex;
-  flex-direction: column;
-  overflow: visible;
-}
-/* Board hit the readability floor and still doesn't fit — scroll instead
-   of shrinking further. */
-.tt-root.tt-fit-overflow {
-  height: 100vh;
+  display: grid;
+  grid-template-areas:
+    "exam"
+    "header"
+    "main"
+    "footer";
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
+.tt-root.tt-fit-overflow,
 .tt-root.tt-fit-overflow .tt-scaleWrap,
 .tt-root.tt-fit-overflow .tt-app {
-  height: calc(100vh / var(--tt-fit-scale));
-  min-height: 0;
   overflow: hidden;
 }
 
 /* Exam strip */
 .tt-examStrip {
+  grid-area: exam;
   display: flex;
 }
 .tt-examBox {
@@ -278,6 +275,7 @@
 
 /* Header */
 .tt-header {
+  grid-area: header;
   background: #fff;
   padding: 3px 12px 1px 12px;
   position: relative;
@@ -513,19 +511,23 @@
 
 /* Grid */
 .tt-mainGrid {
-  flex: 1 1 auto;
+  grid-area: main;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
-  padding: 5px 12px 0;
-  align-items: stretch;
+  padding: clamp(4px, 0.45vw, 8px) clamp(8px, 0.9vw, 14px) 0;
+  overflow: hidden;
 }
 .tt-leftCol {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "timetable"
+    "pending"
+    "dashboard";
+  grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr);
+  gap: clamp(4px, 0.42vw, 7px);
   overflow: hidden;
 }
 .tt-rightCol {
@@ -533,6 +535,7 @@
 }
 
 .tt-table {
+  grid-area: timetable;
   width: 100%;
   border-collapse: collapse;
   font-size: clamp(11px, 0.78vw, 12.5px);
@@ -680,7 +683,8 @@
 }
 
 .tt-pendingBox {
-  margin-top: 6px;
+  grid-area: pending;
+  margin-top: 0;
   background: #fff7e8;
   border: 1px solid var(--tt-orange);
   border-radius: 5px;
@@ -722,10 +726,14 @@
 }
 
 .tt-bottomGrid {
+  grid-area: dashboard;
   display: grid;
-  grid-template-columns: 1.08fr 1.08fr 1fr 1fr;
-  gap: 8px;
-  margin-top: 6px;
+  grid-template-areas:
+    "rotation analytics coverage progress consistency"
+    "rotation analytics rules firebase checklist";
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(260px, 1.55fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 0.82fr);
+  gap: clamp(5px, 0.55vw, 9px);
   min-height: 0;
   align-items: stretch;
   overflow: hidden;
@@ -733,12 +741,11 @@
 .tt-bottomGrid > .tt-col {
   min-width: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: contents;
 }
-.tt-bottomGrid > .tt-col > .tt-card {
-  flex: 0 0 auto;
+.tt-bottomGrid > .tt-col > .tt-card,
+.tt-bottomGrid > .tt-col > .tt-rememberBox {
+  min-height: 0;
 }
 
 .tt-card {
@@ -835,7 +842,8 @@
 }
 
 .tt-analyticsCard {
-  height: 100%;
+  grid-area: analytics;
+  height: auto;
 }
 .tt-analyticsGrid {
   display: grid;
@@ -1167,7 +1175,8 @@
 }
 
 .tt-footerQuote {
-  margin-top: 4px;
+  grid-area: footer;
+  margin-top: 0;
   background: var(--tt-navy);
   color: var(--tt-gold);
   text-align: center;
@@ -1704,105 +1713,128 @@
 }
 
 /* =============================================================
-   RESPONSIVE LAYERS
+   SINGLE-PAGE GRID MODEL
    ============================================================= */
+.tt-rotationCard { grid-area: rotation; }
+.tt-coverageCard { grid-area: coverage; }
+.tt-progressCard { grid-area: progress; }
+.tt-rulesCard { grid-area: rules; }
+.tt-emailCard { grid-area: firebase; }
+.tt-consistencyCard { grid-area: consistency; }
+.tt-checklistCard { grid-area: checklist; }
 
-/* Tablet and below — stop scaling, let the grid reflow */
-@media (max-width: 1023px) {
-  :root {
-    --tt-fit-scale: 1;
-  }
-  .tt-root {
-    height: 100vh;
-    overflow: hidden;
-  }
-  .tt-scaleWrap {
-    height: calc(100vh / var(--tt-fit-scale));
-    width: calc(100% / var(--tt-fit-scale));
-  }
-  .tt-app {
-    height: calc(100vh / var(--tt-fit-scale));
-    overflow: hidden;
-  }
-  .tt-mainGrid {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
+.tt-root,
+.tt-scaleWrap,
+.tt-app,
+.tt-mainGrid,
+.tt-leftCol,
+.tt-bottomGrid {
+  overflow: hidden;
+}
+.tt-card {
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(5px, 0.5vw, 9px) clamp(7px, 0.72vw, 11px);
+}
+.tt-card h3 { font-size: clamp(10px, 0.72vw, 12px); }
+.tt-cardBody { min-height: 0; justify-content: center; }
+.tt-pendingBox {
+  max-height: clamp(38px, 5.8vh, 64px);
+  overflow: hidden;
+}
+.tt-pendingList {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.tt-pendingItem,
+.tt-pendingEmpty { flex: 0 1 auto; min-width: 0; }
+.tt-table { height: 100%; }
+.tt-table thead th { font-size: clamp(9.5px, 0.66vw, 11.5px); padding: clamp(1px, 0.18vw, 3px) 6px; }
+.tt-table tbody td { padding: clamp(1px, 0.16vw, 3px) 5px; line-height: 1.25; }
+.tt-rowIcon { font-size: clamp(14px, 0.9vw, 17px); }
+.tt-statusPill { min-width: clamp(48px, 4.1vw, 58px); font-size: clamp(8px, 0.6vw, 10px); }
+.tt-actBtns button { width: clamp(20px, 1.25vw, 25px); height: clamp(20px, 1.25vw, 25px); }
 
+.tt-rotationTable { font-size: clamp(10px, 0.72vw, 12px); }
+.tt-rotationTable td { padding: clamp(2px, 0.33vw, 5px) 5px; }
+.tt-examCoverage li,
+.tt-goldenRules li { font-size: clamp(10px, 0.72vw, 11.5px); margin: clamp(1px, 0.22vw, 3px) 0; }
+.tt-ringWrap { gap: clamp(8px, 0.85vw, 16px); }
+.tt-ringCanvas { width: clamp(54px, 4.6vw, 72px); height: clamp(54px, 4.6vw, 72px); }
+.tt-statList { font-size: clamp(10px, 0.7vw, 11.5px); line-height: 1.35; }
+.tt-analyticsGrid { grid-auto-rows: minmax(0, 1fr); }
+.tt-analyticsGrid > div { padding: clamp(3px, 0.42vw, 6px) 3px; font-size: clamp(8.5px, 0.62vw, 10px); }
+.tt-analyticsGrid > div b { font-size: clamp(12px, 0.95vw, 15px); }
+
+.tt-heatmapWrap { align-items: stretch; justify-content: center; min-height: 0; }
+.tt-monthBody { grid-template-columns: minmax(128px, 0.95fr) minmax(132px, 1.05fr); gap: clamp(6px, 0.7vw, 10px); align-items: stretch; }
+.tt-monthGridWrap,
+.tt-monthCompare { min-height: 0; }
+.tt-monthCompare { padding: clamp(5px, 0.55vw, 8px); }
+.tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
+.tt-monthGrid .tt-hcell i { font-size: clamp(6.5px, 0.52vw, 8px); }
+.tt-heatmapLegend { flex-wrap: wrap; justify-content: center; line-height: 1.15; }
+.tt-heatmapMetric { flex-basis: 100%; text-align: center; }
+.tt-checklist { justify-content: center; gap: clamp(1px, 0.22vw, 4px); }
+.tt-checklist label { font-size: clamp(10px, 0.7vw, 12px); line-height: 1.15; }
+.tt-rememberBox {
+  min-height: 0;
+  padding: clamp(5px, 0.55vw, 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+.tt-heatmapDetails { max-width: 520px; }
+.tt-heatmapDetailList { display: grid; gap: 8px; max-height: 45vh; overflow: auto; }
+.tt-heatmapDetailItem { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
+.tt-heatmapDetailItem span { display: grid; gap: 3px; }
+.tt-heatmapDetailItem em { font-style: normal; font-size: 11px; color: #586174; }
+.tt-heatmapExtension { background: rgba(242,193,78,.18); border: 1px solid rgba(242,193,78,.35); }
+.tt-heatmapHoverOverlay { pointer-events: auto; }
+
+@media (max-width: 1180px) {
+  .tt-leftCol { grid-template-rows: minmax(0, 1.08fr) auto minmax(0, 0.92fr); }
   .tt-bottomGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "analytics coverage consistency"
+      "rotation progress consistency"
+      "rules firebase checklist";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(240px, 1.25fr);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
   }
 }
 
-/* Tablet */
-@media (max-width: 1023px) {
-  .tt-examStrip {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .tt-examStrip::-webkit-scrollbar {
-    display: none;
-  }
-  .tt-examBox {
-    min-width: 210px;
-  }
-  .tt-headerTop {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .tt-bottomGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .tt-monthBody {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
-
-/* Phone — natural scroll, timetable becomes stacked cards */
 @media (max-width: 767px) {
-  .tt-app {
-    border-width: 0;
-  }
+  .tt-app { border-width: 0; }
+  .tt-examStrip { overflow-x: auto; scrollbar-width: none; }
+  .tt-examStrip::-webkit-scrollbar { display: none; }
+  .tt-examBox { min-width: 210px; }
+  .tt-headerTop { flex-wrap: wrap; gap: 8px; }
   .tt-headerTop > div:first-child,
-  .tt-headerTop > div:last-child {
-    width: 100% !important;
+  .tt-headerTop > div:last-child { width: 100% !important; }
+  .tt-titleBlock h1 { font-size: clamp(18px, 6vw, 26px); line-height: 1.1; }
+  .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
+  .tt-examTags { line-height: 1.5; }
+  .tt-leftCol { grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .tt-bottomGrid {
+    grid-template-areas:
+      "consistency checklist"
+      "analytics progress"
+      "rotation coverage"
+      "rules firebase";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
   }
-  .tt-titleBlock h1 {
-    font-size: clamp(18px, 6vw, 26px);
-    line-height: 1.1;
-  }
-  .tt-monthBody {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .tt-table,
-  .tt-table tbody,
-  .tt-table tr,
-  .tt-table td {
-    display: block;
-    width: 100%;
-  }
-  .tt-table thead {
-    display: none;
-  }
-  .tt-table tr {
-    margin-bottom: 8px;
-    border-radius: 14px;
-    padding: 8px 10px;
-    border: 1px solid rgba(21, 27, 77, 0.1);
-  }
-  .tt-table td {
-    padding: 3px 0 !important;
-    text-align: left !important;
-    width: auto !important;
-  }
-  .tt-table td:empty {
-    display: none;
-  }
-  .tt-rowIcon {
-    font-size: 20px;
-  }
-
-  /* Modals become full-width sheets */
+  .tt-monthBody { grid-template-columns: minmax(0, 1fr); }
+  .tt-monthCompare { display: none; }
+  .tt-heatmapMetric { display: block; margin-top: 4px; font-size: 10px; }
+  .tt-table { font-size: clamp(9px, 2.5vw, 11px); }
+  .tt-glassOverlay { align-items: flex-end; padding: 8px; }
+  .tt-glassActions, .tt-glassChips { flex-wrap: wrap; }
+  .tt-glassBtn, .tt-glassChip { min-height: 44px; }
   .tt-glassBox,
   .tt-timerModal {
     position: fixed !important;
@@ -1816,63 +1848,7 @@
     overflow-y: auto;
     transform: none !important;
   }
-  .tt-tmRingRow {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-}
-
-
-/* Small screens keep every control reachable without horizontal page overflow. */
-@media (max-width: 767px) {
-  .tt-examBox { min-width: 0; }
-  .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
-  .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
-  .tt-examTags { line-height: 1.5; }
-  .tt-heatmapMetric { display: block; margin-top: 8px; font-size: 10px; text-align: center; color: #586174; }
-  .tt-glassOverlay { align-items: flex-end; padding: 8px; }
-  .tt-glassActions, .tt-glassChips { flex-wrap: wrap; }
-  .tt-glassBtn, .tt-glassChip { min-height: 44px; }
+  .tt-tmRingRow { flex-wrap: wrap; justify-content: center; }
   .tt-timerMini { width: calc(100% - 24px); max-width: 420px; padding: 9px 14px; gap: 8px; }
   .tt-timerMini .tt-tmSubj { max-width: min(58vw, 250px); }
-}
-
-
-/* Authoritative single-page layout guard.
-   The app is intended to fit one viewport; responsive rules above must not
-   re-enable page scrolling or let one panel consume the dashboard. */
-.tt-root { height: 100vh; overflow: hidden; }
-.tt-scaleWrap { height: calc(100vh / var(--tt-fit-scale)); }
-.tt-app { height: calc(100vh / var(--tt-fit-scale)); overflow: hidden; }
-.tt-root.tt-fit-overflow { height: 100vh; overflow: hidden; }
-.tt-root.tt-fit-overflow .tt-scaleWrap,
-.tt-root.tt-fit-overflow .tt-app { height: calc(100vh / var(--tt-fit-scale)); min-height: 0; overflow: hidden; }
-
-.tt-bottomGrid { align-items: start; grid-auto-rows: min-content; overflow: hidden; }
-.tt-bottomGrid > .tt-col { align-self: start; min-height: 0; }
-.tt-bottomGrid > .tt-col > .tt-card { flex: 0 0 auto; }
-.tt-analyticsCard { height: auto; }
-.tt-analyticsGrid { flex: 0 0 auto; }
-.tt-leftCol { grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
-.tt-pendingBox { flex: 0 0 auto; max-height: 72px; overflow: hidden; }
-
-.tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
-.tt-heatmapDetails { max-width: 520px; }
-.tt-heatmapDetailList { display: grid; gap: 8px; max-height: 45vh; overflow: auto; }
-.tt-heatmapDetailItem { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
-.tt-heatmapDetailItem span { display: grid; gap: 3px; }
-.tt-heatmapDetailItem em { font-style: normal; font-size: 11px; color: #586174; }
-.tt-heatmapExtension { background: rgba(242,193,78,.18); border: 1px solid rgba(242,193,78,.35); }
-
-/* Heatmap details are close-button controlled only. */
-.tt-heatmapHoverOverlay { pointer-events: auto; }
-
-@media (min-width: 1024px) {
-  .tt-table { font-size: clamp(10.5px, .74vw, 12px); }
-  .tt-table thead th { font-size: clamp(10px, .68vw, 11.5px); padding: 2px 6px; }
-  .tt-table tbody td { padding: 1px 6px; line-height: 1.28; }
-  .tt-rowIcon { font-size: clamp(14px, .85vw, 16px); }
-  .tt-card h3 { font-size: clamp(10.5px, .72vw, 12px); }
-  .tt-card { padding: 6px 10px; }
-  .tt-actBtns button { width: clamp(21px, 1.15vw, 24px); height: clamp(21px, 1.15vw, 24px); }
 }
