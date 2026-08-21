@@ -461,6 +461,7 @@ function StudyTimetable({ user }: { user: User }) {
 
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const heatmapHoverTimerRef = useRef<number | null>(null);
+  const heatmapRequestIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Firestore References — dayKey is state so a real date change re-points the doc
@@ -1050,9 +1051,12 @@ function StudyTimetable({ user }: { user: User }) {
       window.clearTimeout(heatmapHoverTimerRef.current);
       heatmapHoverTimerRef.current = null;
     }
+    const requestId = heatmapRequestIdRef.current + 1;
+    heatmapRequestIdRef.current = requestId;
     setHeatmapDay({ date, logs: [], extensions: [], loading: true });
     try {
       const snapshot = await getDoc(doc(db, "users", user.uid, "daily", date));
+      if (heatmapRequestIdRef.current !== requestId) return;
       const data = snapshot.exists() ? snapshot.data() : null;
       const logs = data && Array.isArray(data.completedLog)
         ? data.completedLog as CompletedLog[]
@@ -1062,6 +1066,7 @@ function StudyTimetable({ user }: { user: User }) {
         : [];
       setHeatmapDay({ date, logs, extensions, loading: false });
     } catch (error) {
+      if (heatmapRequestIdRef.current !== requestId) return;
       console.error("Could not load heatmap day", error);
       setHeatmapDay({ date, logs: [], extensions: [], loading: false });
     }
@@ -1086,10 +1091,12 @@ function StudyTimetable({ user }: { user: User }) {
       window.clearTimeout(heatmapHoverTimerRef.current);
       heatmapHoverTimerRef.current = null;
     }
+    heatmapRequestIdRef.current += 1;
     setHeatmapDay(null);
   };
 
   useEffect(() => () => {
+    heatmapRequestIdRef.current += 1;
     if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
   }, []);
 
