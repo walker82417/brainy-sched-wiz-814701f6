@@ -1211,6 +1211,10 @@ function StudyTimetable({ user }: { user: User }) {
       const intensity = Math.ceil(Math.max(hourScore, sessionScore) * 4);
       cells.push({ ...cell, intensity });
     });
+    // Always render a six-week calendar frame. Some months need six visual
+    // rows, so reserving the full frame prevents future/previous months from
+    // clipping or jumping when the month toggle is used.
+    while (cells.length < 42) cells.push(null);
     const cur = monthStatsFor(y, m);
     const pd = new Date(y, m - 1, 1);
     const prev = monthStatsFor(pd.getFullYear(), pd.getMonth());
