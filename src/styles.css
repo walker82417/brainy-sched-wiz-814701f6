@@ -169,8 +169,10 @@
   box-sizing: border-box;
 }
 .tt-root {
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #e9eaf2;
   font-family: var(--tt-font-body);
   color: var(--tt-text);
@@ -185,7 +187,8 @@
 }
 .tt-app {
   width: 100%;
-  height: calc(100vh / var(--tt-fit-scale));
+  min-height: calc(100vh / var(--tt-fit-scale));
+  height: auto;
   background: var(--tt-paper);
   border: 2px solid var(--tt-navy);
   display: flex;
@@ -1863,4 +1866,7 @@
 .tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
 .tt-heatmapDetails { max-width: 520px; }
 .tt-heatmapDetailList { display: grid; gap: 8px; max-height: 45vh; overflow: auto; }
-.tt-heatmapDetailList > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
+.tt-heatmapDetailItem { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
+.tt-heatmapDetailItem span { display: grid; gap: 3px; }
+.tt-heatmapDetailItem em { font-style: normal; font-size: 11px; color: #586174; }
+.tt-heatmapExtension { background: rgba(242,193,78,.18); border: 1px solid rgba(242,193,78,.35); }
