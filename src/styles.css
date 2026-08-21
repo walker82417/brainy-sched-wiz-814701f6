@@ -734,7 +734,7 @@
     "rotation analytics coverage progress consistency"
     "rotation analytics rules firebase consistency"
     "remember analytics rules firebase checklist";
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(252px, 1.46fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(250px, 1.44fr);
   grid-template-rows: minmax(0, 0.78fr) minmax(0, 0.58fr) minmax(34px, 0.34fr);
   gap: clamp(5px, 0.55vw, 9px);
   min-height: 0;
