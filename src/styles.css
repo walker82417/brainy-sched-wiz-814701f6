@@ -526,7 +526,9 @@
     "timetable"
     "pending"
     "dashboard";
-  grid-template-rows: minmax(0, 1.22fr) auto minmax(0, 0.78fr);
+  /* Keep the final timetable row above the pending panel. The app fit scale
+     handles shorter viewports, rather than letting this row collapse. */
+  grid-template-rows: minmax(max-content, 1.22fr) auto minmax(0, 0.78fr);
   gap: clamp(4px, 0.42vw, 7px);
   overflow: hidden;
 }
@@ -1829,7 +1831,7 @@
 .tt-heatmapHoverOverlay { pointer-events: auto; }
 
 @media (max-width: 1180px) {
-  .tt-leftCol { grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr); }
+  .tt-leftCol { grid-template-rows: minmax(max-content, 1.18fr) auto minmax(0, 0.82fr); }
   .tt-bottomGrid {
     grid-template-areas:
       "analytics coverage consistency"
@@ -1853,7 +1855,7 @@
   .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
   .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
   .tt-examTags { line-height: 1.5; }
-  .tt-leftCol { grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr); }
+  .tt-leftCol { grid-template-rows: minmax(max-content, 1.18fr) auto minmax(0, 0.82fr); }
   .tt-bottomGrid {
     grid-template-areas:
       "consistency checklist"
