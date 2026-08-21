@@ -113,6 +113,7 @@ const EXAMS_DEFAULT: Record<ExamKey, { label: string; date: string }> = {
 type SessionStatus = "notstarted" | "running" | "paused" | "completed";
 type SessionRec = { status: SessionStatus; remaining: number; endTs: number | null; warned: boolean; durationAllocated?: number; topic?: string; };
 type CompletedLog = { date: string; rowId: number; cat: Row["cat"]; durMin: number; ts: number };
+type ExtensionLogEntry = { date: string; rowId: number; activity: string; minutes: number; deductedFromRowId: number | null; deductedFrom: string | null; comment?: string; reopened: boolean; ts: number };
 type ChecklistState = Record<string, boolean>;
 
 /* =============================================================
@@ -423,13 +424,13 @@ function StudyTimetable({ user }: { user: User }) {
   const [heatmapLog, setHeatmapLog] = useState<Record<string, number>>({});
   const [studyMinutesLog, setStudyMinutesLog] = useState<Record<string, number>>({});
   const [completedLog, setCompletedLog] = useState<CompletedLog[]>([]);
-  const [extensionLog, setExtensionLog] = useState<Array<{ date: string; rowId: number; activity: string; minutes: number; deductedFromRowId: number | null; deductedFrom: string | null; reopened: boolean; ts: number }>>([]);
+  const [extensionLog, setExtensionLog] = useState<ExtensionLogEntry[]>([]);
   const [timeShift, setTimeShift] = useState(0);
 
   // UI State
   const [editingExam, setEditingExam] = useState<ExamKey | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
-  const [heatmapDay, setHeatmapDay] = useState<{ date: string; logs: CompletedLog[]; loading: boolean } | null>(null);
+  const [heatmapDay, setHeatmapDay] = useState<{ date: string; logs: CompletedLog[]; extensions: ExtensionLogEntry[]; loading: boolean } | null>(null);
   const [extendModal, setExtendModal] = useState<{ id: number } | null>(null);
   const [extendMins, setExtendMins] = useState<number>(15);
   const [deductId, setDeductId] = useState<number | 'none'>('none');
@@ -459,6 +460,7 @@ function StudyTimetable({ user }: { user: User }) {
 
 
   const ringRef = useRef<HTMLCanvasElement | null>(null);
+  const heatmapHoverTimerRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Firestore References — dayKey is state so a real date change re-points the doc
@@ -1044,18 +1046,46 @@ function StudyTimetable({ user }: { user: User }) {
   };
 
   const openHeatmapDay = async (date: string) => {
-    setHeatmapDay({ date, logs: [], loading: true });
+    if (heatmapHoverTimerRef.current !== null) {
+      window.clearTimeout(heatmapHoverTimerRef.current);
+      heatmapHoverTimerRef.current = null;
+    }
+    setHeatmapDay({ date, logs: [], extensions: [], loading: true });
     try {
       const snapshot = await getDoc(doc(db, "users", user.uid, "daily", date));
-      const logs = snapshot.exists() && Array.isArray(snapshot.data().completedLog)
-        ? snapshot.data().completedLog as CompletedLog[]
+      const data = snapshot.exists() ? snapshot.data() : null;
+      const logs = data && Array.isArray(data.completedLog)
+        ? data.completedLog as CompletedLog[]
         : [];
-      setHeatmapDay({ date, logs, loading: false });
+      const extensions = data && Array.isArray(data.extensionLog)
+        ? data.extensionLog as ExtensionLogEntry[]
+        : [];
+      setHeatmapDay({ date, logs, extensions, loading: false });
     } catch (error) {
       console.error("Could not load heatmap day", error);
-      setHeatmapDay({ date, logs: [], loading: false });
+      setHeatmapDay({ date, logs: [], extensions: [], loading: false });
     }
   };
+
+  const scheduleHeatmapDay = (date: string) => {
+    if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
+    heatmapHoverTimerRef.current = window.setTimeout(() => {
+      heatmapHoverTimerRef.current = null;
+      openHeatmapDay(date);
+    }, 2000);
+  };
+
+  const closeHeatmapDay = () => {
+    if (heatmapHoverTimerRef.current !== null) {
+      window.clearTimeout(heatmapHoverTimerRef.current);
+      heatmapHoverTimerRef.current = null;
+    }
+    setHeatmapDay(null);
+  };
+
+  useEffect(() => () => {
+    if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
+  }, []);
 
   const saveExamDate = (key: ExamKey, val: string) => {
     if (!val) return;
@@ -1141,19 +1171,29 @@ function StudyTimetable({ user }: { user: User }) {
     const y = d.getFullYear(), m = d.getMonth();
     const total = new Date(y, m + 1, 0).getDate();
     const lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday-first
-    const cells: ({ key: string; count: number; minutes: number; intensity: number; day: number } | null)[] = [];
-    for (let i = 0; i < lead; i++) cells.push(null);
-    for (let day = 1; day <= total; day++) {
+    const rawDays = Array.from({ length: total }, (_, index) => {
+      const day = index + 1;
       const key = localDateKey(new Date(y, m, day));
       const storedSessions = heatmapLog[key] || 0;
       // Keep today's cell live as sessions are completed locally, before the
       // Firestore round trip arrives on another device.
       const count = key === todayKey() ? Math.max(storedSessions, doneToday.length) : storedSessions;
       const minutes = studyMinutesForDate(key);
-      // A two-hour study block should be visible even when it is only one session.
-      const intensity = Math.max(count, Math.ceil(minutes / 60));
-      cells.push({ key, count, minutes, intensity, day });
-    }
+      return { key, count, minutes, day };
+    });
+    const monthMaxHours = Math.max(12, ...rawDays.map((cell) => cell.minutes / 60));
+    const monthMaxSessions = Math.max(1, ...rawDays.map((cell) => cell.count));
+    const cells: ({ key: string; count: number; minutes: number; intensity: number; day: number } | null)[] = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    rawDays.forEach((cell) => {
+      // Full glow is calibrated to the best recorded day in the month, but the
+      // hour scale never tops out below 12h so an 11.6–11.8h planned day does
+      // not look "complete" unless the user truly crosses the 12h target.
+      const hourScore = (cell.minutes / 60) / monthMaxHours;
+      const sessionScore = cell.count / monthMaxSessions;
+      const intensity = Math.ceil(Math.max(hourScore, sessionScore) * 4);
+      cells.push({ ...cell, intensity });
+    });
     const cur = monthStatsFor(y, m);
     const pd = new Date(y, m - 1, 1);
     const prev = monthStatsFor(pd.getFullYear(), pd.getMonth());
@@ -1563,16 +1603,16 @@ function StudyTimetable({ user }: { user: User }) {
                             {monthView.cells.map((c, i) => {
                               if (!c) return <div key={`e${i}`} className="tt-hcell empty" />;
                               let cls = "tt-hcell";
-                              if (c.intensity >= 1 && c.intensity < 3) cls += " l1";
-                              else if (c.intensity >= 3 && c.intensity < 6) cls += " l2";
-                              else if (c.intensity >= 6 && c.intensity < 9) cls += " l3";
-                              else if (c.intensity >= 9) cls += " l4";
+                              if (c.intensity === 1) cls += " l1";
+                              else if (c.intensity === 2) cls += " l2";
+                              else if (c.intensity === 3) cls += " l3";
+                              else if (c.intensity >= 4) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <button key={c.key} type="button" className={cls} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
+                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onMouseLeave={closeHeatmapDay} onFocus={() => scheduleHeatmapDay(c.key)} onBlur={closeHeatmapDay} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">
-                            Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More <span className="tt-heatmapMetric">Intensity: completed sessions + study time</span>
+                            Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More <span className="tt-heatmapMetric">Intensity: best monthly sessions + hours (12h full-glow floor)</span>
                           </div>
                         </div>
 
@@ -1637,18 +1677,25 @@ function StudyTimetable({ user }: { user: User }) {
       </div>
 
       {heatmapDay && (
-        <div className="tt-glassOverlay" onClick={() => setHeatmapDay(null)}>
+        <div className="tt-glassOverlay tt-heatmapHoverOverlay" onClick={closeHeatmapDay}>
           <div className="tt-glassBox tt-heatmapDetails" onClick={(event) => event.stopPropagation()}>
             <div className="tt-glassHead">
               <div className="tt-glassIcon">📅</div>
               <div><div className="tt-glassEyebrow">Study history</div><div className="tt-glassTitle">{heatmapDay.date}</div></div>
-              <button className="tt-glassClose" onClick={() => setHeatmapDay(null)} aria-label="Close">×</button>
+              <button className="tt-glassClose" onClick={closeHeatmapDay} aria-label="Close">×</button>
             </div>
-            {heatmapDay.loading ? <div className="tt-glassHint">Loading completed sessions…</div> : heatmapDay.logs.length ? (
-              <div className="tt-heatmapDetailList">{heatmapDay.logs.map((log) => {
-                const row = ROWS.find((item) => item.id === log.rowId);
-                return <div key={`${log.rowId}-${log.ts}`}><span>{row?.icon || "📚"} {row?.act || "Study session"}</span><b>{log.durMin}m</b></div>;
-              })}</div>
+            {heatmapDay.loading ? <div className="tt-glassHint">Loading completed sessions…</div> : (heatmapDay.logs.length || heatmapDay.extensions.length) ? (
+              <div className="tt-heatmapDetailList">
+                {heatmapDay.logs.map((log) => {
+                  const row = ROWS.find((item) => item.id === log.rowId);
+                  const extensionsForSession = heatmapDay.extensions.filter((entry) => entry.rowId === log.rowId);
+                  const extensionMinutes = extensionsForSession.reduce((total, entry) => total + entry.minutes, 0);
+                  return <div key={`${log.rowId}-${log.ts}`} className="tt-heatmapDetailItem"><span>{row?.icon || "📚"} {row?.act || "Study session"}{extensionMinutes > 0 && <em>Extended +{extensionMinutes}m</em>}</span><b>{log.durMin}m</b></div>;
+                })}
+                {heatmapDay.extensions.map((entry) => (
+                  <div key={`ext-${entry.rowId}-${entry.ts}`} className="tt-heatmapDetailItem tt-heatmapExtension"><span>⏱️ {entry.activity}<em>{entry.deductedFrom ? `+${entry.minutes}m, traded from ${entry.deductedFrom}` : `+${entry.minutes}m, day extended`}{entry.reopened ? " · reopened" : ""}{entry.comment ? ` · ${entry.comment}` : ""}</em></span><b>+{entry.minutes}m</b></div>
+                ))}
+              </div>
             ) : <div className="tt-glassHint">No detailed session log is available for this older date. Its heatmap total is shown above.</div>}
           </div>
         </div>
