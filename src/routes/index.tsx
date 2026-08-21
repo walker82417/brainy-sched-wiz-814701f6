@@ -1072,9 +1072,16 @@ function StudyTimetable({ user }: { user: User }) {
     }
   };
 
+  const cancelScheduledHeatmapDay = () => {
+    if (heatmapHoverTimerRef.current !== null) {
+      window.clearTimeout(heatmapHoverTimerRef.current);
+      heatmapHoverTimerRef.current = null;
+    }
+  };
+
   const scheduleHeatmapDay = (date: string) => {
     if (heatmapDay) return;
-    if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
+    cancelScheduledHeatmapDay();
     heatmapHoverTimerRef.current = window.setTimeout(() => {
       heatmapHoverTimerRef.current = null;
       openHeatmapDay(date);
@@ -1087,17 +1094,14 @@ function StudyTimetable({ user }: { user: User }) {
   };
 
   const closeHeatmapDay = () => {
-    if (heatmapHoverTimerRef.current !== null) {
-      window.clearTimeout(heatmapHoverTimerRef.current);
-      heatmapHoverTimerRef.current = null;
-    }
+    cancelScheduledHeatmapDay();
     heatmapRequestIdRef.current += 1;
     setHeatmapDay(null);
   };
 
   useEffect(() => () => {
     heatmapRequestIdRef.current += 1;
-    if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
+    cancelScheduledHeatmapDay();
   }, []);
 
   const saveExamDate = (key: ExamKey, val: string) => {
@@ -1601,9 +1605,9 @@ function StudyTimetable({ user }: { user: User }) {
                     <div className="tt-monthHead">
                       <h3>CONSISTENCY — {monthView.label}</h3>
                       <div className="tt-monthNav">
-                        <button onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">‹</button>
-                        <button onClick={() => setMonthOffset(0)} disabled={monthView.isCurrentMonth} aria-label="This month">•</button>
-                        <button onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthView.isCurrentMonth} aria-label="Next month">›</button>
+                        <button onClick={() => { closeHeatmapDay(); setMonthOffset((o) => o - 1); }} aria-label="Previous month">‹</button>
+                        <button onClick={() => { closeHeatmapDay(); setMonthOffset(0); }} disabled={monthView.isCurrentMonth} aria-label="This month">•</button>
+                        <button onClick={() => { closeHeatmapDay(); setMonthOffset((o) => Math.min(0, o + 1)); }} disabled={monthView.isCurrentMonth} aria-label="Next month">›</button>
                       </div>
                     </div>
                     <div className="tt-heatmapWrap">
@@ -1621,7 +1625,7 @@ function StudyTimetable({ user }: { user: User }) {
                               else if (c.intensity === 3) cls += " l3";
                               else if (c.intensity >= 4) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onFocus={() => scheduleHeatmapDay(c.key)} onClick={() => openHeatmapDayFromCell(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
+                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onMouseLeave={cancelScheduledHeatmapDay} onFocus={() => scheduleHeatmapDay(c.key)} onBlur={cancelScheduledHeatmapDay} onClick={() => openHeatmapDayFromCell(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">

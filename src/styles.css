@@ -526,7 +526,7 @@
     "timetable"
     "pending"
     "dashboard";
-  grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr);
+  grid-template-rows: minmax(0, 1.38fr) auto minmax(0, 0.62fr);
   gap: clamp(4px, 0.42vw, 7px);
   overflow: hidden;
 }
@@ -732,7 +732,7 @@
     "rotation analytics coverage progress consistency"
     "rotation analytics rules firebase checklist";
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(260px, 1.55fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 0.82fr);
+  grid-template-rows: minmax(0, 0.92fr) minmax(0, 0.72fr);
   gap: clamp(5px, 0.55vw, 9px);
   min-height: 0;
   align-items: stretch;
@@ -1736,12 +1736,14 @@
   overflow: hidden;
   padding: clamp(5px, 0.5vw, 9px) clamp(7px, 0.72vw, 11px);
 }
-.tt-card h3 { font-size: clamp(10px, 0.72vw, 12px); }
+.tt-card h3 { font-size: clamp(9px, 0.66vw, 11px); margin-bottom: clamp(2px, 0.25vw, 4px); }
 .tt-cardBody { min-height: 0; justify-content: center; }
 .tt-pendingBox {
-  max-height: clamp(38px, 5.8vh, 64px);
+  max-height: clamp(32px, 4.8vh, 52px);
   overflow: hidden;
+  padding: clamp(2px, 0.25vw, 4px) clamp(7px, 0.75vw, 10px);
 }
+.tt-pendingBox h3 { margin-bottom: 2px; font-size: clamp(8.5px, 0.58vw, 10px); }
 .tt-pendingList {
   flex-wrap: nowrap;
   overflow: hidden;
@@ -1749,32 +1751,36 @@
 }
 .tt-pendingItem,
 .tt-pendingEmpty { flex: 0 1 auto; min-width: 0; }
-.tt-table { height: 100%; }
-.tt-table thead th { font-size: clamp(9.5px, 0.66vw, 11.5px); padding: clamp(1px, 0.18vw, 3px) 6px; }
-.tt-table tbody td { padding: clamp(1px, 0.16vw, 3px) 5px; line-height: 1.25; }
-.tt-rowIcon { font-size: clamp(14px, 0.9vw, 17px); }
-.tt-statusPill { min-width: clamp(48px, 4.1vw, 58px); font-size: clamp(8px, 0.6vw, 10px); }
-.tt-actBtns button { width: clamp(20px, 1.25vw, 25px); height: clamp(20px, 1.25vw, 25px); }
+.tt-table { height: 100%; min-height: 0; overflow: hidden; }
+.tt-table thead th { font-size: clamp(8.5px, 0.58vw, 10.5px); padding: clamp(1px, 0.12vw, 2px) 5px; line-height: 1.12; }
+.tt-table tbody tr { height: clamp(19px, 2.28vh, 25px); }
+.tt-table tbody td { padding: 0 5px; line-height: 1.08; font-size: clamp(9.5px, 0.68vw, 11.5px); }
+.tt-rowIcon { font-size: clamp(12px, 0.8vw, 15px); }
+.tt-rowTopic { margin-top: 1px; font-size: clamp(8px, 0.55vw, 9.5px); }
+.tt-statusPill { min-width: clamp(44px, 3.8vw, 54px); padding: 1px 4px; font-size: clamp(7.5px, 0.54vw, 9px); }
+.tt-rowTimer { font-size: clamp(9px, 0.62vw, 10.5px); }
+.tt-actBtns { gap: clamp(2px, 0.28vw, 4px); }
+.tt-actBtns button { width: clamp(18px, 1.08vw, 22px); height: clamp(18px, 1.08vw, 22px); font-size: clamp(9px, 0.68vw, 12px); }
 
 .tt-rotationTable { font-size: clamp(10px, 0.72vw, 12px); }
-.tt-rotationTable td { padding: clamp(2px, 0.33vw, 5px) 5px; }
+.tt-rotationTable td { padding: clamp(1px, 0.25vw, 4px) 5px; }
 .tt-examCoverage li,
 .tt-goldenRules li { font-size: clamp(10px, 0.72vw, 11.5px); margin: clamp(1px, 0.22vw, 3px) 0; }
 .tt-ringWrap { gap: clamp(8px, 0.85vw, 16px); }
-.tt-ringCanvas { width: clamp(54px, 4.6vw, 72px); height: clamp(54px, 4.6vw, 72px); }
+.tt-ringCanvas { width: clamp(48px, 4.1vw, 64px); height: clamp(48px, 4.1vw, 64px); }
 .tt-statList { font-size: clamp(10px, 0.7vw, 11.5px); line-height: 1.35; }
 .tt-analyticsGrid { grid-auto-rows: minmax(0, 1fr); }
-.tt-analyticsGrid > div { padding: clamp(3px, 0.42vw, 6px) 3px; font-size: clamp(8.5px, 0.62vw, 10px); }
+.tt-analyticsGrid > div { padding: clamp(2px, 0.32vw, 5px) 3px; font-size: clamp(8px, 0.58vw, 9.5px); }
 .tt-analyticsGrid > div b { font-size: clamp(12px, 0.95vw, 15px); }
 
 .tt-heatmapWrap { align-items: stretch; justify-content: center; min-height: 0; }
-.tt-monthBody { grid-template-columns: minmax(128px, 0.95fr) minmax(132px, 1.05fr); gap: clamp(6px, 0.7vw, 10px); align-items: stretch; }
+.tt-monthBody { grid-template-columns: minmax(132px, 0.95fr) minmax(126px, 1.05fr); gap: clamp(5px, 0.55vw, 8px); align-items: stretch; }
 .tt-monthGridWrap,
 .tt-monthCompare { min-height: 0; }
-.tt-monthCompare { padding: clamp(5px, 0.55vw, 8px); }
+.tt-monthCompare { padding: clamp(4px, 0.45vw, 7px); overflow: hidden; }
 .tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
 .tt-monthGrid .tt-hcell i { font-size: clamp(6.5px, 0.52vw, 8px); }
-.tt-heatmapLegend { flex-wrap: wrap; justify-content: center; line-height: 1.15; }
+.tt-heatmapLegend { flex-wrap: wrap; justify-content: center; line-height: 1.1; gap: 3px; font-size: clamp(8px, 0.55vw, 9.5px); }
 .tt-heatmapMetric { flex-basis: 100%; text-align: center; }
 .tt-checklist { justify-content: center; gap: clamp(1px, 0.22vw, 4px); }
 .tt-checklist label { font-size: clamp(10px, 0.7vw, 12px); line-height: 1.15; }
@@ -1795,7 +1801,7 @@
 .tt-heatmapHoverOverlay { pointer-events: auto; }
 
 @media (max-width: 1180px) {
-  .tt-leftCol { grid-template-rows: minmax(0, 1.08fr) auto minmax(0, 0.92fr); }
+  .tt-leftCol { grid-template-rows: minmax(0, 1.25fr) auto minmax(0, 0.75fr); }
   .tt-bottomGrid {
     grid-template-areas:
       "analytics coverage consistency"
@@ -1818,7 +1824,7 @@
   .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
   .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
   .tt-examTags { line-height: 1.5; }
-  .tt-leftCol { grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .tt-leftCol { grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr); }
   .tt-bottomGrid {
     grid-template-areas:
       "consistency checklist"
