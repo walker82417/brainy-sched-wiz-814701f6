@@ -169,14 +169,17 @@
   box-sizing: border-box;
 }
 .tt-root {
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #e9eaf2;
   font-family: var(--tt-font-body);
   color: var(--tt-text);
 }
 .tt-scaleWrap {
-  height: calc(100vh / var(--tt-fit-scale));
+  min-height: calc(100vh / var(--tt-fit-scale));
+  height: auto;
   width: calc(100% / var(--tt-fit-scale));
   display: flex;
   align-items: stretch;
@@ -185,12 +188,13 @@
 }
 .tt-app {
   width: 100%;
-  height: calc(100vh / var(--tt-fit-scale));
+  min-height: calc(100vh / var(--tt-fit-scale));
+  height: auto;
   background: var(--tt-paper);
   border: 2px solid var(--tt-navy);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 /* Board hit the readability floor and still doesn't fit — scroll instead
    of shrinking further. */
