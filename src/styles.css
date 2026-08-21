@@ -730,7 +730,7 @@
   display: grid;
   grid-template-areas:
     "rotation analytics coverage progress consistency"
-    "rotation analytics rules firebase checklist"
+    "rotation analytics rules firebase consistency"
     "remember analytics rules firebase checklist";
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(260px, 1.55fr);
   grid-template-rows: minmax(0, 0.78fr) minmax(0, 0.58fr) minmax(34px, 0.34fr);
@@ -1520,7 +1520,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: clamp(4px, 0.45vw, 8px);
+  min-height: 0;
 }
 .tt-monthHead h3 {
   min-width: 0;
@@ -1534,8 +1535,8 @@
   flex-shrink: 0;
 }
 .tt-monthNav button {
-  width: 20px;
-  height: 20px;
+  width: clamp(16px, 1.1vw, 20px);
+  height: clamp(16px, 1.1vw, 20px);
   border-radius: 7px;
   border: 1px solid rgba(21, 27, 77, 0.14);
   background: rgba(255, 255, 255, 0.7);
@@ -1776,10 +1777,16 @@
 .tt-analyticsGrid > div b { font-size: clamp(10.5px, 0.82vw, 13px); }
 
 .tt-heatmapWrap { align-items: stretch; justify-content: center; min-height: 0; }
-.tt-monthBody { grid-template-columns: minmax(132px, 0.95fr) minmax(126px, 1.05fr); gap: clamp(4px, 0.48vw, 7px); align-items: stretch; }
+.tt-monthBody { grid-template-columns: minmax(150px, 1.08fr) minmax(118px, 0.92fr); gap: clamp(4px, 0.48vw, 7px); align-items: stretch; }
 .tt-monthGridWrap,
 .tt-monthCompare { min-height: 0; }
-.tt-monthCompare { padding: clamp(4px, 0.45vw, 7px); overflow: hidden; }
+.tt-monthCompare { padding: clamp(3px, 0.4vw, 6px); overflow: hidden; }
+.tt-mcTitle { font-size: clamp(8px, 0.55vw, 9.5px); margin-bottom: 2px; }
+.tt-mcRow { gap: 4px; padding: 1px 0; }
+.tt-mcLabel { font-size: clamp(7.8px, 0.52vw, 9px); }
+.tt-mcVal { font-size: clamp(8.5px, 0.58vw, 10px); }
+.tt-mcDelta { font-size: clamp(7.5px, 0.5vw, 8.8px); padding: 0 4px; }
+.tt-spark { height: clamp(26px, 3.4vh, 42px); margin-top: 4px; }
 .tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
 .tt-monthGrid .tt-hcell i { font-size: clamp(6.5px, 0.52vw, 8px); }
 .tt-heatmapLegend { flex-wrap: wrap; justify-content: center; line-height: 1.1; gap: 3px; font-size: clamp(8px, 0.55vw, 9.5px); }
