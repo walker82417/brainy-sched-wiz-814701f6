@@ -418,7 +418,10 @@ function StudyTimetable({ user }: { user: User }) {
   const [sessions, setSessions] = useState<Record<number, SessionRec>>(initSessions);
   const [checklist, setChecklist] = useState<Record<string, boolean>>(initChecklist);
   const [pending, setPending] = useState<number[]>([]);
+  // Session count and actual study minutes are stored separately so the heatmap
+  // remains useful after the daily document (completedLog) rolls over.
   const [heatmapLog, setHeatmapLog] = useState<Record<string, number>>({});
+  const [studyMinutesLog, setStudyMinutesLog] = useState<Record<string, number>>({});
   const [completedLog, setCompletedLog] = useState<CompletedLog[]>([]);
   const [extensionLog, setExtensionLog] = useState<Array<{ date: string; rowId: number; activity: string; minutes: number; deductedFromRowId: number | null; deductedFrom: string | null; reopened: boolean; ts: number }>>([]);
   const [timeShift, setTimeShift] = useState(0);
@@ -426,6 +429,7 @@ function StudyTimetable({ user }: { user: User }) {
   // UI State
   const [editingExam, setEditingExam] = useState<ExamKey | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [heatmapDay, setHeatmapDay] = useState<{ date: string; logs: CompletedLog[]; loading: boolean } | null>(null);
   const [extendModal, setExtendModal] = useState<{ id: number } | null>(null);
   const [extendMins, setExtendMins] = useState<number>(15);
   const [deductId, setDeductId] = useState<number | 'none'>('none');
@@ -501,6 +505,7 @@ function StudyTimetable({ user }: { user: User }) {
         const data = snap.data();
         if (data.examDates) setExamDates(data.examDates);
         if (data.heatmapLog) setHeatmapLog(data.heatmapLog);
+        if (data.studyMinutesLog) setStudyMinutesLog(data.studyMinutesLog);
       }
     });
 
@@ -561,6 +566,7 @@ function StudyTimetable({ user }: { user: User }) {
           const data = userSnap.data();
           if (data.examDates) setExamDates(data.examDates);
           if (data.heatmapLog) setHeatmapLog(data.heatmapLog);
+          if (data.studyMinutesLog) setStudyMinutesLog(data.studyMinutesLog);
         }
         if (todaySnap.exists()) {
           const data = todaySnap.data();
@@ -907,9 +913,15 @@ function StudyTimetable({ user }: { user: User }) {
     // NOTE: must be a nested map, not a "heatmapLog.<date>" dotted key — setDoc()
     // treats dotted strings as literal field names, which is why the email engine
     // was reading 0 sessions.
-    const nextHeat = { ...heatmapLog, [todayKey()]: (heatmapLog[todayKey()] || 0) + 1 };
+    const key = todayKey();
+    const nextHeat = { ...heatmapLog, [key]: (heatmapLog[key] || 0) + 1 };
+    const nextMinutes = { ...studyMinutesLog, [key]: (studyMinutesLog[key] || 0) + finalDur };
     setHeatmapLog(nextHeat);
-    updateUserStats({ heatmapLog: { [todayKey()]: nextHeat[todayKey()] } });
+    setStudyMinutesLog(nextMinutes);
+    updateUserStats({
+      heatmapLog: { [key]: nextHeat[key] },
+      studyMinutesLog: { [key]: nextMinutes[key] },
+    });
 
     // Sync this event to Google Sheets
     postToSheet({ row: row.act, cat: row.cat, minutes: finalDur, status: "completed" }, "session_completed");
@@ -958,9 +970,17 @@ function StudyTimetable({ user }: { user: User }) {
 
     if (reopened) {
        newLog = completedLog.filter(log => !(log.date === todayKey() && log.rowId === id));
-       const decHeat = { ...heatmapLog, [todayKey()]: Math.max((heatmapLog[todayKey()] || 1) - 1, 0) };
+       const key = todayKey();
+       const completedEntry = completedLog.find((log) => log.date === key && log.rowId === id);
+       const loggedMinutes = completedEntry?.durMin ?? oldAllocated;
+       const decHeat = { ...heatmapLog, [key]: Math.max((heatmapLog[key] || 1) - 1, 0) };
+       const decMinutes = { ...studyMinutesLog, [key]: Math.max((studyMinutesLog[key] || 0) - loggedMinutes, 0) };
        setHeatmapLog(decHeat);
-       updateUserStats({ heatmapLog: { [todayKey()]: decHeat[todayKey()] } });
+       setStudyMinutesLog(decMinutes);
+       updateUserStats({
+         heatmapLog: { [key]: decHeat[key] },
+         studyMinutesLog: { [key]: decMinutes[key] },
+       });
 
        const checklistItem = ROW_CHECKLIST_MAP[id];
        if (checklistItem) {
@@ -1023,6 +1043,20 @@ function StudyTimetable({ user }: { user: User }) {
     postToSheet(extensionEntry, reopened ? "session_reopened_extended" : "session_extended");
   };
 
+  const openHeatmapDay = async (date: string) => {
+    setHeatmapDay({ date, logs: [], loading: true });
+    try {
+      const snapshot = await getDoc(doc(db, "users", user.uid, "daily", date));
+      const logs = snapshot.exists() && Array.isArray(snapshot.data().completedLog)
+        ? snapshot.data().completedLog as CompletedLog[]
+        : [];
+      setHeatmapDay({ date, logs, loading: false });
+    } catch (error) {
+      console.error("Could not load heatmap day", error);
+      setHeatmapDay({ date, logs: [], loading: false });
+    }
+  };
+
   const saveExamDate = (key: ExamKey, val: string) => {
     if (!val) return;
     const newExams = { ...examDates, [key]: { ...examDates[key], date: val } };
@@ -1070,6 +1104,22 @@ function StudyTimetable({ user }: { user: User }) {
   const todayIdx = (now.getDay() + 6) % 7;
 
   /* ---- MONTHLY HEATMAP + MONTH-OVER-MONTH COMPARISON ---- */
+  // New entries are exact. Older session-only history is shown with a clearly
+  // consistent one-hour-per-session fallback until a user completes new sessions.
+  const studyMinutesForDate = useCallback((key: string) => {
+    const storedMinutes = studyMinutesLog[key];
+    const localMinutes = completedLog
+      .filter((entry) => entry.date === key)
+      .reduce((total, entry) => total + entry.durMin, 0);
+
+    // The current session is not complete yet, so it is not in Firebase's
+    // completed-minute log. Include its live elapsed time immediately instead
+    // of making today's heatmap wait until the session is completed.
+    if (key === todayKey()) return Math.max(storedMinutes || 0, localMinutes, liveProgress.studied);
+    if (storedMinutes !== undefined) return storedMinutes;
+    return localMinutes || (heatmapLog[key] || 0) * 60;
+  }, [studyMinutesLog, completedLog, heatmapLog, liveProgress.studied]);
+
   const monthStatsFor = useCallback((y: number, m: number) => {
     const days = new Date(y, m + 1, 0).getDate();
     let sessions = 0, activeDays = 0, best = { key: "—", count: 0 };
@@ -1079,11 +1129,11 @@ function StudyTimetable({ user }: { user: User }) {
       if (c > 0) { sessions += c; activeDays++; }
       if (c > best.count) best = { key, count: c };
     }
-    const minutes = completedLog
-      .filter((l) => { const dt = new Date(l.date + "T00:00:00"); return dt.getFullYear() === y && dt.getMonth() === m; })
-      .reduce((a, l) => a + l.durMin, 0);
+    const minutes = Array.from({ length: days }, (_, index) =>
+      studyMinutesForDate(localDateKey(new Date(y, m, index + 1))),
+    ).reduce((sum, value) => sum + value, 0);
     return { sessions, activeDays, minutes, best, days };
-  }, [heatmapLog, completedLog]);
+  }, [heatmapLog, studyMinutesLog, studyMinutesForDate]);
 
   const monthView = useMemo(() => {
     const base = new Date();
@@ -1091,11 +1141,18 @@ function StudyTimetable({ user }: { user: User }) {
     const y = d.getFullYear(), m = d.getMonth();
     const total = new Date(y, m + 1, 0).getDate();
     const lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday-first
-    const cells: ({ key: string; count: number; day: number } | null)[] = [];
+    const cells: ({ key: string; count: number; minutes: number; intensity: number; day: number } | null)[] = [];
     for (let i = 0; i < lead; i++) cells.push(null);
     for (let day = 1; day <= total; day++) {
       const key = localDateKey(new Date(y, m, day));
-      cells.push({ key, count: heatmapLog[key] || 0, day });
+      const storedSessions = heatmapLog[key] || 0;
+      // Keep today's cell live as sessions are completed locally, before the
+      // Firestore round trip arrives on another device.
+      const count = key === todayKey() ? Math.max(storedSessions, doneToday.length) : storedSessions;
+      const minutes = studyMinutesForDate(key);
+      // A two-hour study block should be visible even when it is only one session.
+      const intensity = Math.max(count, Math.ceil(minutes / 60));
+      cells.push({ key, count, minutes, intensity, day });
     }
     const cur = monthStatsFor(y, m);
     const pd = new Date(y, m - 1, 1);
@@ -1111,7 +1168,7 @@ function StudyTimetable({ user }: { user: User }) {
       cells, cur, prev, spark, sparkMax,
       isCurrentMonth: monthOffset === 0,
     };
-  }, [monthOffset, heatmapLog, monthStatsFor]);
+  }, [monthOffset, heatmapLog, studyMinutesLog, studyMinutesForDate, monthStatsFor, doneToday.length]);
 
 
   const analytics = useMemo(() => {
@@ -1120,10 +1177,14 @@ function StudyTimetable({ user }: { user: User }) {
     const monthAgo = new Date(nowD); monthAgo.setDate(nowD.getDate() - 29);
     const inRange = (dstr: string, from: Date) => dstr >= localDateKey(from);
     const todayLogs = completedLog.filter((l) => l.date === todayKey());
-    const weekLogs = completedLog.filter((l) => inRange(l.date, weekAgo));
-    const monthLogs = completedLog.filter((l) => inRange(l.date, monthAgo));
     const sum = (arr: CompletedLog[]) => arr.reduce((a, b) => a + b.durMin, 0);
-    const avgSession = completedLog.length ? Math.round(sum(completedLog) / completedLog.length) : 0;
+    const sumMinutesSince = (from: Date) =>
+      Object.keys(heatmapLog)
+        .filter((date) => inRange(date, from))
+        .reduce((total, date) => total + studyMinutesForDate(date), 0);
+    const allSessions = Object.values(heatmapLog).reduce((total, value) => total + value, 0);
+    const allMinutes = Object.keys(heatmapLog).reduce((total, date) => total + studyMinutesForDate(date), 0);
+    const avgSession = allSessions ? Math.round(allMinutes / allSessions) : 0;
     const longest = completedLog.length ? Math.max(...completedLog.map((l) => l.durMin)) : 0;
     const bySubject: Record<string, number> = {};
     completedLog.forEach((l) => { const r = activeRows.find((x) => x.id === l.rowId); if (r) bySubject[r.act] = (bySubject[r.act] || 0) + l.durMin; });
@@ -1143,9 +1204,9 @@ function StudyTimetable({ user }: { user: User }) {
     return {
       cells: [
         ["TODAY", (liveProgress.studied / 60).toFixed(1) + "h"],
-        ["THIS WEEK", ((sum(weekLogs) + partialBonus) / 60).toFixed(1) + "h"],
-        ["THIS MONTH", ((sum(monthLogs) + partialBonus) / 60).toFixed(1) + "h"],
-        ["COMPLETED SESSIONS", String(completedLog.length)],
+        ["THIS WEEK", ((sumMinutesSince(weekAgo) + partialBonus) / 60).toFixed(1) + "h"],
+        ["THIS MONTH", ((sumMinutesSince(monthAgo) + partialBonus) / 60).toFixed(1) + "h"],
+        ["COMPLETED SESSIONS", String(allSessions)],
         ["AVG SESSION", avgSession + "m"],
         ["MOST STUDIED", mostStudied],
         ["LONGEST SESSION", longest + "m"],
@@ -1154,7 +1215,7 @@ function StudyTimetable({ user }: { user: User }) {
         ["WEAK DAY", weakDay],
       ] as [string, string][],
     };
-  }, [completedLog, heatmapLog, streak, liveProgress]);
+  }, [completedLog, heatmapLog, studyMinutesLog, studyMinutesForDate, streak, liveProgress]);
 
   /* =========================================================
      AUTO-FIT — measure the real board and scale it so it fits
@@ -1502,16 +1563,16 @@ function StudyTimetable({ user }: { user: User }) {
                             {monthView.cells.map((c, i) => {
                               if (!c) return <div key={`e${i}`} className="tt-hcell empty" />;
                               let cls = "tt-hcell";
-                              if (c.count >= 1 && c.count < 3) cls += " l1";
-                              else if (c.count >= 3 && c.count < 6) cls += " l2";
-                              else if (c.count >= 6 && c.count < 9) cls += " l3";
-                              else if (c.count >= 9) cls += " l4";
+                              if (c.intensity >= 1 && c.intensity < 3) cls += " l1";
+                              else if (c.intensity >= 3 && c.intensity < 6) cls += " l2";
+                              else if (c.intensity >= 6 && c.intensity < 9) cls += " l3";
+                              else if (c.intensity >= 9) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <div key={c.key} className={cls} title={`${c.key}: ${c.count} sessions`}><i>{c.day}</i></div>;
+                              return <button key={c.key} type="button" className={cls} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">
-                            Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More
+                            Less <span className="tt-hcell" /> <span className="tt-hcell l1" /> <span className="tt-hcell l2" /> <span className="tt-hcell l3" /> <span className="tt-hcell l4" /> More <span className="tt-heatmapMetric">Intensity: completed sessions + study time</span>
                           </div>
                         </div>
 
@@ -1574,6 +1635,24 @@ function StudyTimetable({ user }: { user: User }) {
           <div className="tt-footerQuote">FOCUS ON YOUR GOAL. DON&apos;T LOOK IN ANY DIRECTION BUT AHEAD. &nbsp;|&nbsp; YOUR HARD WORK WILL DEFINITELY PAY OFF. ★ ★ ★</div>
         </div>
       </div>
+
+      {heatmapDay && (
+        <div className="tt-glassOverlay" onClick={() => setHeatmapDay(null)}>
+          <div className="tt-glassBox tt-heatmapDetails" onClick={(event) => event.stopPropagation()}>
+            <div className="tt-glassHead">
+              <div className="tt-glassIcon">📅</div>
+              <div><div className="tt-glassEyebrow">Study history</div><div className="tt-glassTitle">{heatmapDay.date}</div></div>
+              <button className="tt-glassClose" onClick={() => setHeatmapDay(null)} aria-label="Close">×</button>
+            </div>
+            {heatmapDay.loading ? <div className="tt-glassHint">Loading completed sessions…</div> : heatmapDay.logs.length ? (
+              <div className="tt-heatmapDetailList">{heatmapDay.logs.map((log) => {
+                const row = ROWS.find((item) => item.id === log.rowId);
+                return <div key={`${log.rowId}-${log.ts}`}><span>{row?.icon || "📚"} {row?.act || "Study session"}</span><b>{log.durMin}m</b></div>;
+              })}</div>
+            ) : <div className="tt-glassHint">No detailed session log is available for this older date. Its heatmap total is shown above.</div>}
+          </div>
+        </div>
+      )}
 
       {/* SUNDAY PLANNER — build the whole day yourself */}
       {sundayModal && (

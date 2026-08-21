@@ -1822,3 +1822,45 @@
     justify-content: center;
   }
 }
+
+
+/* Small screens keep every control reachable without horizontal page overflow. */
+@media (max-width: 767px) {
+  .tt-examBox { min-width: 0; }
+  .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
+  .tt-examTags { line-height: 1.5; }
+  .tt-heatmapMetric { display: block; margin-top: 8px; font-size: 10px; text-align: center; color: #586174; }
+  .tt-glassOverlay { align-items: flex-end; padding: 8px; }
+  .tt-glassActions, .tt-glassChips { flex-wrap: wrap; }
+  .tt-glassBtn, .tt-glassChip { min-height: 44px; }
+  .tt-timerMini { width: calc(100% - 24px); max-width: 420px; padding: 9px 14px; gap: 8px; }
+  .tt-timerMini .tt-tmSubj { max-width: min(58vw, 250px); }
+}
+
+
+/* Keep the board content-sized at every browser zoom level. The previous
+   viewport-sized canvas produced a huge empty area at 25% zoom. */
+@media (min-width: 768px) {
+  .tt-root { height: auto; min-height: 0; overflow: visible; }
+  .tt-scaleWrap { height: auto; min-height: 0; }
+  .tt-app { height: auto; min-height: 0; overflow: visible; }
+  .tt-bottomGrid { align-items: start; overflow: visible; }
+  .tt-bottomGrid > .tt-col { align-self: start; }
+}
+
+
+/* Let each dashboard card stop at its own content height instead of inheriting
+   the tallest column's height; this removes the large unusable panels. */
+.tt-bottomGrid { align-items: start; grid-auto-rows: min-content; }
+.tt-bottomGrid > .tt-col { align-self: start; }
+.tt-analyticsCard { height: auto; }
+.tt-analyticsGrid { flex: 0 0 auto; }
+
+
+/* Avoid reserving a full-height third row for the dashboard on wide screens. */
+.tt-leftCol { grid-template-rows: auto auto auto; overflow: visible; }
+.tt-monthGrid .tt-hcell { border: 0; cursor: pointer; font: inherit; }
+.tt-heatmapDetails { max-width: 520px; }
+.tt-heatmapDetailList { display: grid; gap: 8px; max-height: 45vh; overflow: auto; }
+.tt-heatmapDetailList > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.7); color: #1f2870; }
