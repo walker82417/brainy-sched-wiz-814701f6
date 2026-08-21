@@ -526,10 +526,7 @@
     "timetable"
     "pending"
     "dashboard";
-  /* Keep the final timetable row above the pending panel. The app fit scale
-     handles shorter viewports, rather than letting this row collapse. */
-  grid-template-rows: minmax(max-content, 1.22fr) auto minmax(0, 0.78fr);
-  align-content: start;
+  grid-template-rows: minmax(0, 1.22fr) auto minmax(0, 0.78fr);
   gap: clamp(4px, 0.42vw, 7px);
   overflow: hidden;
 }
@@ -737,7 +734,7 @@
     "rotation analytics coverage progress consistency"
     "rotation analytics rules firebase consistency"
     "remember analytics rules firebase checklist";
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(200px, clamp(320px, 20vw, 380px));
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 0.96fr) minmax(200px, 1.25fr);
   grid-template-rows: minmax(0, 0.78fr) minmax(0, 0.58fr) minmax(34px, 0.34fr);
   gap: clamp(5px, 0.55vw, 9px);
   min-height: 0;
@@ -751,7 +748,6 @@
 }
 .tt-bottomGrid > .tt-col > .tt-card,
 .tt-bottomGrid > .tt-col > .tt-rememberBox {
-  min-width: 0;
   min-height: 0;
 }
 
@@ -1577,18 +1573,12 @@
 }
 .tt-monthGridWrap {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
 }
 .tt-monthDow,
 .tt-monthGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 3px;
-}
-.tt-monthGrid {
-  grid-template-rows: repeat(6, clamp(18px, 2.45vh, 30px));
-  align-content: start;
 }
 .tt-monthDow {
   margin-bottom: 3px;
@@ -1602,8 +1592,8 @@
 }
 .tt-monthGrid .tt-hcell {
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  aspect-ratio: 1 / 1;
   border-radius: 4px;
   display: grid;
   place-items: center;
@@ -1797,7 +1787,7 @@
 .tt-analyticsGrid > div b { font-size: clamp(10.5px, 0.82vw, 13px); }
 
 .tt-heatmapWrap { align-items: stretch; justify-content: center; min-height: 0; }
-.tt-monthBody { grid-template-columns: minmax(150px, 1.08fr) minmax(112px, 0.9fr); gap: clamp(4px, 0.48vw, 7px); align-items: stretch; min-height: 0; }
+.tt-monthBody { grid-template-columns: minmax(154px, 1.1fr) minmax(112px, 0.9fr); gap: clamp(4px, 0.48vw, 7px); align-items: stretch; min-height: 0; }
 .tt-monthGridWrap,
 .tt-monthCompare { min-height: 0; }
 .tt-monthCompare { padding: clamp(3px, 0.4vw, 6px); overflow: hidden; }
@@ -1832,7 +1822,7 @@
 .tt-heatmapHoverOverlay { pointer-events: auto; }
 
 @media (max-width: 1180px) {
-  .tt-leftCol { grid-template-rows: minmax(max-content, 1.18fr) auto minmax(0, 0.82fr); }
+  .tt-leftCol { grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr); }
   .tt-bottomGrid {
     grid-template-areas:
       "analytics coverage consistency"
@@ -1856,7 +1846,7 @@
   .tt-liveRow { align-items: flex-start; flex-direction: column; gap: 3px; }
   .tt-syncIndicator { float: none; margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; }
   .tt-examTags { line-height: 1.5; }
-  .tt-leftCol { grid-template-rows: minmax(max-content, 1.18fr) auto minmax(0, 0.82fr); }
+  .tt-leftCol { grid-template-rows: minmax(0, 1.18fr) auto minmax(0, 0.82fr); }
   .tt-bottomGrid {
     grid-template-areas:
       "consistency checklist"
