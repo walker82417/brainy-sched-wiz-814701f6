@@ -529,6 +529,7 @@
   /* Keep the final timetable row above the pending panel. The app fit scale
      handles shorter viewports, rather than letting this row collapse. */
   grid-template-rows: minmax(max-content, 1.22fr) auto minmax(0, 0.78fr);
+  align-content: start;
   gap: clamp(4px, 0.42vw, 7px);
   overflow: hidden;
 }
