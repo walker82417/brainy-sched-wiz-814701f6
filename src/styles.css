@@ -1875,48 +1875,25 @@
 .tt-heatmapHoverOverlay { pointer-events: none; }
 .tt-heatmapHoverOverlay .tt-heatmapDetails { pointer-events: auto; }
 
-/* Desktop single-page fit: use the full viewport without creating page scroll. */
-@media (min-width: 1024px) {
-  .tt-mainGrid { padding-top: 4px; }
-  .tt-leftCol { grid-template-rows: auto minmax(0, 1fr); }
-  .tt-table th:nth-child(3), .tt-table td:nth-child(3),
-  .tt-table th:nth-child(4), .tt-table td:nth-child(4) { white-space: normal; }
-  .tt-bottomGrid {
-    grid-template-columns: minmax(240px, .95fr) minmax(280px, 1.05fr) minmax(280px, 1.05fr) minmax(250px, .95fr);
-    align-items: stretch;
-  }
-  .tt-bottomGrid > .tt-col { height: 100%; }
-  .tt-analyticsCard, .tt-heatmapWrap, .tt-checklist { flex: 1 1 auto; }
-  .tt-analyticsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tt-card { min-height: 0; }
-}
 
-/* Final single-screen guard: later responsive rules must not re-enable page scrolling. */
-.tt-root {
-  height: 100vh;
-  overflow: hidden;
-}
-.tt-scaleWrap {
-  height: calc(100vh / var(--tt-fit-scale));
-}
-.tt-app {
-  height: calc(100vh / var(--tt-fit-scale));
-  overflow: hidden;
-}
+/* Single-page guard and balanced dashboard layout. Keep the board on one viewport
+   without letting pending missions or dashboard cards steal the whole page. */
+.tt-root { height: 100vh; overflow: hidden; }
+.tt-scaleWrap { height: calc(100vh / var(--tt-fit-scale)); }
+.tt-app { height: calc(100vh / var(--tt-fit-scale)); overflow: hidden; }
+.tt-leftCol { grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
+.tt-pendingBox { flex: 0 0 auto; max-height: 72px; overflow: hidden; }
+.tt-bottomGrid { align-items: stretch; overflow: hidden; grid-auto-rows: 1fr; }
+.tt-bottomGrid > .tt-col { align-self: stretch; min-height: 0; }
+.tt-bottomGrid > .tt-col > .tt-card { flex: 0 0 auto; }
 
-/* Readability and space utilization pass: fill available panels instead of leaving empty center space. */
+/* Readability without blowing up the single-screen fit. */
 @media (min-width: 1024px) {
-  .tt-table thead th { padding: 3px 7px; }
-  .tt-table tbody td { padding: 2px 7px; }
-  .tt-rowIcon { font-size: clamp(15px, .95vw, 18px); }
-  .tt-statusPill { font-size: clamp(9.5px, .65vw, 11px); }
-  .tt-actBtns button { width: clamp(22px, 1.3vw, 28px); height: clamp(22px, 1.3vw, 28px); font-size: clamp(10px, .7vw, 12px); }
-  .tt-card h3 { font-size: clamp(11px, .8vw, 13px); }
-  .tt-card { padding: clamp(6px, .45vw, 10px) clamp(9px, .65vw, 14px); }
-  .tt-bottomGrid > .tt-col > .tt-card { flex: 1 1 0; }
-  .tt-bottomGrid > .tt-col > .tt-card[style] { flex: 1 1 0 !important; }
-  .tt-analyticsGrid { height: 100%; }
-  .tt-progressCard { justify-content: center; }
-  .tt-ringCanvas { width: clamp(76px, 5vw, 100px); height: clamp(76px, 5vw, 100px); }
-  .tt-rememberBox { flex: 1 1 0; font-size: clamp(11px, .78vw, 13px); }
+  .tt-table { font-size: clamp(10.5px, .74vw, 12px); }
+  .tt-table thead th { font-size: clamp(10px, .68vw, 11.5px); padding: 2px 6px; }
+  .tt-table tbody td { padding: 1px 6px; line-height: 1.28; }
+  .tt-rowIcon { font-size: clamp(14px, .85vw, 16px); }
+  .tt-card h3 { font-size: clamp(10.5px, .72vw, 12px); }
+  .tt-card { padding: 6px 10px; }
+  .tt-actBtns button { width: clamp(21px, 1.15vw, 24px); height: clamp(21px, 1.15vw, 24px); }
 }
