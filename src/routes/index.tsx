@@ -1068,6 +1068,7 @@ function StudyTimetable({ user }: { user: User }) {
   };
 
   const scheduleHeatmapDay = (date: string) => {
+    if (heatmapDay) return;
     if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
     heatmapHoverTimerRef.current = window.setTimeout(() => {
       heatmapHoverTimerRef.current = null;
