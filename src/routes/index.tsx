@@ -1076,6 +1076,11 @@ function StudyTimetable({ user }: { user: User }) {
     }, 1000);
   };
 
+  const openHeatmapDayFromCell = (date: string) => {
+    if (heatmapDay) return;
+    openHeatmapDay(date);
+  };
+
   const closeHeatmapDay = () => {
     if (heatmapHoverTimerRef.current !== null) {
       window.clearTimeout(heatmapHoverTimerRef.current);
@@ -1609,7 +1614,7 @@ function StudyTimetable({ user }: { user: User }) {
                               else if (c.intensity === 3) cls += " l3";
                               else if (c.intensity >= 4) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onFocus={() => scheduleHeatmapDay(c.key)} onClick={() => openHeatmapDay(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
+                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onFocus={() => scheduleHeatmapDay(c.key)} onClick={() => openHeatmapDayFromCell(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">
@@ -1678,7 +1683,7 @@ function StudyTimetable({ user }: { user: User }) {
       </div>
 
       {heatmapDay && (
-        <div className="tt-glassOverlay tt-heatmapHoverOverlay" onClick={closeHeatmapDay}>
+        <div className="tt-glassOverlay tt-heatmapHoverOverlay">
           <div className="tt-glassBox tt-heatmapDetails" onClick={(event) => event.stopPropagation()}>
             <div className="tt-glassHead">
               <div className="tt-glassIcon">📅</div>
