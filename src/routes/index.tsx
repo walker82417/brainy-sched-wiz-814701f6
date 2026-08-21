@@ -461,6 +461,7 @@ function StudyTimetable({ user }: { user: User }) {
 
   const ringRef = useRef<HTMLCanvasElement | null>(null);
   const heatmapHoverTimerRef = useRef<number | null>(null);
+  const heatmapRequestIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Firestore References — dayKey is state so a real date change re-points the doc
@@ -1050,9 +1051,12 @@ function StudyTimetable({ user }: { user: User }) {
       window.clearTimeout(heatmapHoverTimerRef.current);
       heatmapHoverTimerRef.current = null;
     }
+    const requestId = heatmapRequestIdRef.current + 1;
+    heatmapRequestIdRef.current = requestId;
     setHeatmapDay({ date, logs: [], extensions: [], loading: true });
     try {
       const snapshot = await getDoc(doc(db, "users", user.uid, "daily", date));
+      if (heatmapRequestIdRef.current !== requestId) return;
       const data = snapshot.exists() ? snapshot.data() : null;
       const logs = data && Array.isArray(data.completedLog)
         ? data.completedLog as CompletedLog[]
@@ -1062,14 +1066,22 @@ function StudyTimetable({ user }: { user: User }) {
         : [];
       setHeatmapDay({ date, logs, extensions, loading: false });
     } catch (error) {
+      if (heatmapRequestIdRef.current !== requestId) return;
       console.error("Could not load heatmap day", error);
       setHeatmapDay({ date, logs: [], extensions: [], loading: false });
     }
   };
 
+  const cancelScheduledHeatmapDay = () => {
+    if (heatmapHoverTimerRef.current !== null) {
+      window.clearTimeout(heatmapHoverTimerRef.current);
+      heatmapHoverTimerRef.current = null;
+    }
+  };
+
   const scheduleHeatmapDay = (date: string) => {
     if (heatmapDay) return;
-    if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
+    cancelScheduledHeatmapDay();
     heatmapHoverTimerRef.current = window.setTimeout(() => {
       heatmapHoverTimerRef.current = null;
       openHeatmapDay(date);
@@ -1082,15 +1094,14 @@ function StudyTimetable({ user }: { user: User }) {
   };
 
   const closeHeatmapDay = () => {
-    if (heatmapHoverTimerRef.current !== null) {
-      window.clearTimeout(heatmapHoverTimerRef.current);
-      heatmapHoverTimerRef.current = null;
-    }
+    cancelScheduledHeatmapDay();
+    heatmapRequestIdRef.current += 1;
     setHeatmapDay(null);
   };
 
   useEffect(() => () => {
-    if (heatmapHoverTimerRef.current !== null) window.clearTimeout(heatmapHoverTimerRef.current);
+    heatmapRequestIdRef.current += 1;
+    cancelScheduledHeatmapDay();
   }, []);
 
   const saveExamDate = (key: ExamKey, val: string) => {
@@ -1529,7 +1540,7 @@ function StudyTimetable({ user }: { user: User }) {
               {/* BOTTOM GRID */}
               <div className="tt-bottomGrid">
                 <div className="tt-col">
-                  <div className="tt-card">
+                  <div className="tt-card tt-rotationCard">
                     <h3>SUBJECT FOCUS (WEEKLY ROTATION)</h3>
                     <div className="tt-cardBody">
                       <table className="tt-rotationTable">
@@ -1552,7 +1563,7 @@ function StudyTimetable({ user }: { user: User }) {
                 </div>
 
                 <div className="tt-col">
-                  <div className="tt-card">
+                  <div className="tt-card tt-coverageCard">
                     <h3>EXAM COVERAGE</h3>
                     <div className="tt-cardBody">
                       <ul className="tt-examCoverage">
@@ -1560,7 +1571,7 @@ function StudyTimetable({ user }: { user: User }) {
                       </ul>
                     </div>
                   </div>
-                  <div className="tt-card">
+                  <div className="tt-card tt-progressCard">
                     <h3>TODAY&apos;S PROGRESS</h3>
                     <div className="tt-ringWrap">
                       <canvas ref={ringRef} className="tt-ringCanvas" />
@@ -1575,7 +1586,7 @@ function StudyTimetable({ user }: { user: User }) {
                 </div>
 
                 <div className="tt-col">
-                  <div className="tt-card">
+                  <div className="tt-card tt-rulesCard">
                     <h3>GOLDEN RULES</h3>
                     <div className="tt-cardBody">
                       <ul className="tt-goldenRules">
@@ -1590,13 +1601,13 @@ function StudyTimetable({ user }: { user: User }) {
                 </div>
 
                 <div className="tt-col tt-motivPanel">
-                  <div className="tt-card" style={{ flex: "0 0 auto" }}>
+                  <div className="tt-card tt-consistencyCard" style={{ flex: "0 0 auto" }}>
                     <div className="tt-monthHead">
                       <h3>CONSISTENCY — {monthView.label}</h3>
                       <div className="tt-monthNav">
-                        <button onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">‹</button>
-                        <button onClick={() => setMonthOffset(0)} disabled={monthView.isCurrentMonth} aria-label="This month">•</button>
-                        <button onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthView.isCurrentMonth} aria-label="Next month">›</button>
+                        <button onClick={() => { closeHeatmapDay(); setMonthOffset((o) => o - 1); }} aria-label="Previous month">‹</button>
+                        <button onClick={() => { closeHeatmapDay(); setMonthOffset(0); }} disabled={monthView.isCurrentMonth} aria-label="This month">•</button>
+                        <button onClick={() => { closeHeatmapDay(); setMonthOffset((o) => Math.min(0, o + 1)); }} disabled={monthView.isCurrentMonth} aria-label="Next month">›</button>
                       </div>
                     </div>
                     <div className="tt-heatmapWrap">
@@ -1614,7 +1625,7 @@ function StudyTimetable({ user }: { user: User }) {
                               else if (c.intensity === 3) cls += " l3";
                               else if (c.intensity >= 4) cls += " l4";
                               if (c.key === todayKey()) cls += " today";
-                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onFocus={() => scheduleHeatmapDay(c.key)} onClick={() => openHeatmapDayFromCell(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
+                              return <button key={c.key} type="button" className={cls} onMouseEnter={() => scheduleHeatmapDay(c.key)} onMouseLeave={cancelScheduledHeatmapDay} onFocus={() => scheduleHeatmapDay(c.key)} onBlur={cancelScheduledHeatmapDay} onClick={() => openHeatmapDayFromCell(c.key)} title={`${c.key}: ${c.count} session${c.count === 1 ? "" : "s"} · ${(c.minutes / 60).toFixed(1)}h studied`}><i>{c.day}</i></button>;
                             })}
                           </div>
                           <div className="tt-heatmapLegend">
@@ -1665,7 +1676,7 @@ function StudyTimetable({ user }: { user: User }) {
                     </div>
                   </div>
 
-                  <div className="tt-card" style={{ flex: "0 0 auto" }}>
+                  <div className="tt-card tt-checklistCard" style={{ flex: "0 0 auto" }}>
                     <h3>TODAY&apos;S CHECKLIST</h3>
                     <div className="tt-checklist">
                       {CHECKLIST_ITEMS.map((it) => (
