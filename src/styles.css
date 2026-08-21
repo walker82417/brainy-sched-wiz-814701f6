@@ -178,7 +178,8 @@
   color: var(--tt-text);
 }
 .tt-scaleWrap {
-  height: calc(100vh / var(--tt-fit-scale));
+  min-height: calc(100vh / var(--tt-fit-scale));
+  height: auto;
   width: calc(100% / var(--tt-fit-scale));
   display: flex;
   align-items: stretch;
@@ -193,7 +194,7 @@
   border: 2px solid var(--tt-navy);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 /* Board hit the readability floor and still doesn't fit — scroll instead
    of shrinking further. */
@@ -206,6 +207,7 @@
 .tt-root.tt-fit-overflow .tt-app {
   height: auto;
   min-height: calc(100vh / var(--tt-fit-scale));
+  overflow: visible;
 }
 
 /* Exam strip */
@@ -1870,3 +1872,6 @@
 .tt-heatmapDetailItem span { display: grid; gap: 3px; }
 .tt-heatmapDetailItem em { font-style: normal; font-size: 11px; color: #586174; }
 .tt-heatmapExtension { background: rgba(242,193,78,.18); border: 1px solid rgba(242,193,78,.35); }
+
+.tt-heatmapHoverOverlay { pointer-events: none; }
+.tt-heatmapHoverOverlay .tt-heatmapDetails { pointer-events: auto; }
