@@ -1089,6 +1089,16 @@ function StudyTimetable({ user }: { user: User }) {
   const todayIdx = (now.getDay() + 6) % 7;
 
   /* ---- MONTHLY HEATMAP + MONTH-OVER-MONTH COMPARISON ---- */
+  // New entries are exact. Older session-only history is shown with a clearly
+  // consistent one-hour-per-session fallback until a user completes new sessions.
+  const studyMinutesForDate = useCallback((key: string) => {
+    if (studyMinutesLog[key] !== undefined) return studyMinutesLog[key];
+    const localMinutes = completedLog
+      .filter((entry) => entry.date === key)
+      .reduce((total, entry) => total + entry.durMin, 0);
+    return localMinutes || (heatmapLog[key] || 0) * 60;
+  }, [studyMinutesLog, completedLog, heatmapLog]);
+
   const monthStatsFor = useCallback((y: number, m: number) => {
     const days = new Date(y, m + 1, 0).getDate();
     let sessions = 0, activeDays = 0, best = { key: "—", count: 0 };
@@ -1098,11 +1108,11 @@ function StudyTimetable({ user }: { user: User }) {
       if (c > 0) { sessions += c; activeDays++; }
       if (c > best.count) best = { key, count: c };
     }
-    const minutes = Object.entries(studyMinutesLog)
-      .filter(([key]) => { const dt = new Date(key + "T00:00:00"); return dt.getFullYear() === y && dt.getMonth() === m; })
-      .reduce((sum, [, value]) => sum + value, 0);
+    const minutes = Array.from({ length: days }, (_, index) =>
+      studyMinutesForDate(localDateKey(new Date(y, m, index + 1))),
+    ).reduce((sum, value) => sum + value, 0);
     return { sessions, activeDays, minutes, best, days };
-  }, [heatmapLog, studyMinutesLog]);
+  }, [heatmapLog, studyMinutesLog, studyMinutesForDate]);
 
   const monthView = useMemo(() => {
     const base = new Date();
@@ -1115,7 +1125,7 @@ function StudyTimetable({ user }: { user: User }) {
     for (let day = 1; day <= total; day++) {
       const key = localDateKey(new Date(y, m, day));
       const count = heatmapLog[key] || 0;
-      const minutes = studyMinutesLog[key] || 0;
+      const minutes = studyMinutesForDate(key);
       // A two-hour study block should be visible even when it is only one session.
       const intensity = Math.max(count, Math.ceil(minutes / 60));
       cells.push({ key, count, minutes, intensity, day });
@@ -1134,7 +1144,7 @@ function StudyTimetable({ user }: { user: User }) {
       cells, cur, prev, spark, sparkMax,
       isCurrentMonth: monthOffset === 0,
     };
-  }, [monthOffset, heatmapLog, studyMinutesLog, monthStatsFor]);
+  }, [monthOffset, heatmapLog, studyMinutesLog, studyMinutesForDate, monthStatsFor]);
 
 
   const analytics = useMemo(() => {
@@ -1144,12 +1154,12 @@ function StudyTimetable({ user }: { user: User }) {
     const inRange = (dstr: string, from: Date) => dstr >= localDateKey(from);
     const todayLogs = completedLog.filter((l) => l.date === todayKey());
     const sum = (arr: CompletedLog[]) => arr.reduce((a, b) => a + b.durMin, 0);
-    const sumMetricSince = (metric: Record<string, number>, from: Date) =>
-      Object.entries(metric)
-        .filter(([date]) => inRange(date, from))
-        .reduce((total, [, value]) => total + value, 0);
+    const sumMinutesSince = (from: Date) =>
+      Object.keys(heatmapLog)
+        .filter((date) => inRange(date, from))
+        .reduce((total, date) => total + studyMinutesForDate(date), 0);
     const allSessions = Object.values(heatmapLog).reduce((total, value) => total + value, 0);
-    const allMinutes = Object.values(studyMinutesLog).reduce((total, value) => total + value, 0);
+    const allMinutes = Object.keys(heatmapLog).reduce((total, date) => total + studyMinutesForDate(date), 0);
     const avgSession = allSessions ? Math.round(allMinutes / allSessions) : 0;
     const longest = completedLog.length ? Math.max(...completedLog.map((l) => l.durMin)) : 0;
     const bySubject: Record<string, number> = {};
@@ -1170,8 +1180,8 @@ function StudyTimetable({ user }: { user: User }) {
     return {
       cells: [
         ["TODAY", (liveProgress.studied / 60).toFixed(1) + "h"],
-        ["THIS WEEK", ((sumMetricSince(studyMinutesLog, weekAgo) + partialBonus) / 60).toFixed(1) + "h"],
-        ["THIS MONTH", ((sumMetricSince(studyMinutesLog, monthAgo) + partialBonus) / 60).toFixed(1) + "h"],
+        ["THIS WEEK", ((sumMinutesSince(weekAgo) + partialBonus) / 60).toFixed(1) + "h"],
+        ["THIS MONTH", ((sumMinutesSince(monthAgo) + partialBonus) / 60).toFixed(1) + "h"],
         ["COMPLETED SESSIONS", String(allSessions)],
         ["AVG SESSION", avgSession + "m"],
         ["MOST STUDIED", mostStudied],
@@ -1181,7 +1191,7 @@ function StudyTimetable({ user }: { user: User }) {
         ["WEAK DAY", weakDay],
       ] as [string, string][],
     };
-  }, [completedLog, heatmapLog, studyMinutesLog, streak, liveProgress]);
+  }, [completedLog, heatmapLog, studyMinutesLog, studyMinutesForDate, streak, liveProgress]);
 
   /* =========================================================
      AUTO-FIT — measure the real board and scale it so it fits
